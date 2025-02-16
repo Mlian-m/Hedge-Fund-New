@@ -7,8 +7,8 @@ from dotenv import load_dotenv
 import json
 from langchain_core.messages import HumanMessage
 
-# Get the absolute path to the ai/src directory
-AI_SRC = os.path.abspath(os.path.join(os.path.dirname(__file__), '../ai/src'))
+# Get the absolute path to the src directory
+AI_SRC = os.path.abspath(os.path.join(os.path.dirname(__file__), '../src'))
 
 # Add to Python path if not already there
 if AI_SRC not in sys.path:

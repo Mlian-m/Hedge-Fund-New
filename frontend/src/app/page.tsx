@@ -153,15 +153,8 @@ export default function Home() {
       
       <div className="container mx-auto px-4 py-8">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* Trading View Chart */}
+          {/* Analysis Panel - Now on the left and wider */}
           <div className="lg:col-span-2 space-y-4">
-            <div className="bg-gray-800 rounded-lg p-4">
-              <TradingViewWidget symbol={`${crypto}USDT`} />
-            </div>
-          </div>
-          
-          {/* Analysis Panel */}
-          <div className="space-y-4">
             <div className="bg-gray-800 rounded-lg p-4">
               <div className="mb-4">
                 <div className="flex justify-between items-center mb-4">
@@ -341,6 +334,13 @@ export default function Home() {
               error={error}
               agentReasoning={agentReasoning}
             />
+          </div>
+          
+          {/* Trading View Chart - Now on the right and smaller */}
+          <div className="space-y-4">
+            <div className="bg-gray-800 rounded-lg p-4">
+              <TradingViewWidget symbol={`${crypto}USDT`} />
+            </div>
           </div>
         </div>
       </div>
