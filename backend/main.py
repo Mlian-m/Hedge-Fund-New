@@ -30,7 +30,7 @@ except ImportError as e:
     print(f"Current Python path: {sys.path}")
     raise
 
-app = FastAPI(title="AI Hedge Fund API")
+app = FastAPI(title="AI Hedge Fund API v2")
 
 # Configure CORS
 app.add_middleware(
