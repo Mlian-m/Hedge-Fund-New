@@ -1,0 +1,3 @@
+# Analysis weights configuration
+TECHNICAL_ANALYSIS_WEIGHT = 25
+SENTIMENT_ANALYSIS_WEIGHT = 10 
