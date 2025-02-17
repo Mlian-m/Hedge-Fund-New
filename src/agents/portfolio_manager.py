@@ -4,6 +4,7 @@ from langchain_openai.chat_models import ChatOpenAI
 from config.analysis_weights import (
     TECHNICAL_ANALYSIS_WEIGHT,
     SENTIMENT_ANALYSIS_WEIGHT,
+    SOCIAL_MONITOR_WEIGHT,
 )
 
 from agents.state import AgentState, show_agent_reasoning
@@ -23,12 +24,15 @@ def portfolio_management_agent(state: AgentState):
     show_reasoning = state["metadata"]["show_reasoning"]
     portfolio = state["data"]["portfolio"]
 
-    # Get the technical analyst, fundamentals agent, and risk management agent messages
+    # Get all agent messages
     technical_message = next(
         msg for msg in state["messages"] if msg.name == "technical_analyst_agent"
     )
     sentiment_message = next(
         msg for msg in state["messages"] if msg.name == "sentiment_agent"
+    )
+    social_message = next(
+        msg for msg in state["messages"] if msg.name == "social_monitor_agent"
     )
     risk_message = next(
         msg for msg in state["messages"] if msg.name == "risk_management_agent"
@@ -38,6 +42,7 @@ def portfolio_management_agent(state: AgentState):
     print("\nPortfolio Manager Input Signals:")
     print("Technical Analysis:", technical_message.content)
     print("Sentiment Analysis:", sentiment_message.content)
+    print("Social Monitoring:", social_message.content)
     print("Risk Management:", risk_message.content)
 
     # Create the prompt template
@@ -61,13 +66,18 @@ def portfolio_management_agent(state: AgentState):
                    - Helps with entry/exit timing
                 
                 2. Sentiment Analysis (10% weight)
-                   - Final consideration
-                   - Can influence sizing within risk limits
+                   - Market sentiment indicators
+                   - Insider trading signals
+                
+                3. Social Monitoring (15% weight)
+                   - Social media trends
+                   - Community sentiment
+                   - Development activity
                 
                 The decision process should be:
                 1. First check risk management constraints
                 2. Use technical analysis for timing
-                3. Consider sentiment for final adjustment
+                3. Consider sentiment and social signals for final adjustment
 
                 You must return a JSON object with the following structure:
                 {{
@@ -105,6 +115,7 @@ def portfolio_management_agent(state: AgentState):
 
                 Technical Analysis Trading Signal: {technical_message}
                 Sentiment Analysis Trading Signal: {sentiment_message}
+                Social Monitoring Trading Signal: {social_message}
                 Risk Management : {risk_message}
 
                 Current portfolio:
@@ -130,6 +141,7 @@ def portfolio_management_agent(state: AgentState):
         {
             "technical_message": technical_message.content,
             "sentiment_message": sentiment_message.content,
+            "social_message": social_message.content,
             "risk_message": risk_message.content,
             "portfolio_cash": f"{portfolio['cash']:.2f}",
             "portfolio_leverage": f"{portfolio['leverage']:.2f}",

@@ -11,4 +11,5 @@ langgraph>=0.0.26
 openai==1.59.7
 python-dateutil==2.9.0.post0
 numpy==1.26.4
-matplotlib==3.10.0 
+matplotlib==3.10.0
+dnspython==2.5.0 

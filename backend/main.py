@@ -22,6 +22,7 @@ try:
     from agents.technicals import technical_analyst_agent
     from agents.risk_manager import risk_management_agent
     from agents.sentiment import sentiment_agent
+    from agents.social_monitor import social_monitor_agent
     from agents.state import AgentState
     from langgraph.graph import END, StateGraph
     print("Successfully imported required modules")
@@ -54,6 +55,7 @@ workflow = StateGraph(AgentState)
 workflow.add_node("market_data_agent", market_data_agent)
 workflow.add_node("technical_analyst_agent", technical_analyst_agent)
 workflow.add_node("sentiment_agent", sentiment_agent)
+workflow.add_node("social_monitor_agent", social_monitor_agent)
 workflow.add_node("risk_management_agent", risk_management_agent)
 workflow.add_node("portfolio_management_agent", portfolio_management_agent)
 
@@ -61,8 +63,10 @@ workflow.add_node("portfolio_management_agent", portfolio_management_agent)
 workflow.set_entry_point("market_data_agent")
 workflow.add_edge("market_data_agent", "technical_analyst_agent")
 workflow.add_edge("market_data_agent", "sentiment_agent")
+workflow.add_edge("market_data_agent", "social_monitor_agent")
 workflow.add_edge("technical_analyst_agent", "risk_management_agent")
 workflow.add_edge("sentiment_agent", "risk_management_agent")
+workflow.add_edge("social_monitor_agent", "risk_management_agent")
 workflow.add_edge("risk_management_agent", "portfolio_management_agent")
 workflow.add_edge("portfolio_management_agent", END)
 
@@ -130,6 +134,7 @@ async def analyze(request: AnalysisRequest):
             "market_data_agent",
             "technical_analyst_agent",
             "sentiment_agent",
+            "social_monitor_agent",
             "risk_management_agent",
             "portfolio_management_agent"
         ]
