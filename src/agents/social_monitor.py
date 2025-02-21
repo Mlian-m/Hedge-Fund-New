@@ -72,6 +72,9 @@ LUNARCRUSH_CONFIG = {
     "min_engagement": 1000
 }
 
+# Cache for topic mappings
+_topic_cache = {}
+
 def resolve_dns(hostname):
     """
     Attempt to resolve DNS for a hostname with multiple DNS servers
@@ -189,6 +192,70 @@ def get_coin_metrics(symbol: str):
         print(f"Error fetching coin metrics: {str(e)}")
         return None
 
+def get_topic_for_symbol(symbol: str, session) -> str | None:
+    """Get the topic name for a symbol, using cache or fetching from API."""
+    symbol = symbol.upper()
+    
+    # Check cache first
+    if symbol in _topic_cache:
+        return _topic_cache[symbol]
+    
+    # Check hardcoded map first for common coins
+    if symbol in CRYPTO_TOPIC_MAP:
+        _topic_cache[symbol] = CRYPTO_TOPIC_MAP[symbol]
+        return _topic_cache[symbol]
+    
+    try:
+        # Fetch from coins list API
+        endpoint = f"{LUNARCRUSH_API_URL}/coins/list/v1"
+        headers = {
+            'Authorization': f'Bearer {LUNARCRUSH_API_KEY}',
+            'Accept': 'application/json'
+        }
+        
+        response = session.get(
+            endpoint,
+            headers=headers,
+            timeout=10,
+            verify=True
+        )
+        
+        response.raise_for_status()
+        data = response.json()
+        
+        if not data or "data" not in data:
+            return None
+        
+        # Find the coin in the list
+        for coin in data["data"]:
+            if coin.get("symbol") == symbol:
+                # Use name as topic, lowercase and hyphenated
+                topic = coin.get("name", "").lower().replace(" ", "-")
+                _topic_cache[symbol] = topic
+                return topic
+        
+        # Fallback: use symbol itself as topic
+        fallback = symbol.lower()
+        _topic_cache[symbol] = fallback
+        return fallback
+            
+    except Exception as e:
+        print(f"Error getting topic for {symbol}: {str(e)}")
+        return None
+
+def get_price_change_24h(symbol: str) -> float:
+    """Fetch 24h price change percentage from Binance API"""
+    try:
+        # Use Binance API to get 24h ticker data
+        url = f"https://api.binance.com/api/v3/ticker/24hr?symbol={symbol}USDT"
+        response = requests.get(url, timeout=10)
+        response.raise_for_status()
+        data = response.json()
+        return float(data.get("priceChangePercent", 0))
+    except Exception as e:
+        print(f"Error fetching price change from Binance: {str(e)}")
+        return 0
+
 def get_lunarcrush_data(symbol: str):
     """
     Fetch social metrics from LunarCrush API4 with improved error handling and retries.
@@ -200,10 +267,10 @@ def get_lunarcrush_data(symbol: str):
     session = create_session_with_retries()
     
     try:
-        # Convert symbol to topic name
-        topic = CRYPTO_TOPIC_MAP.get(symbol.upper())
+        # Get topic name for the symbol
+        topic = get_topic_for_symbol(symbol, session)
         if not topic:
-            print(f"No topic mapping found for symbol {symbol}")
+            print(f"Could not determine topic for symbol {symbol}")
             return None
             
         # Use the /topic endpoint with the topic name
@@ -234,9 +301,9 @@ def get_lunarcrush_data(symbol: str):
             print("API Response:", data)
             return None
             
-        # Debug: Print raw API response
-        print("\nRaw LunarCrush API Response:")
-        print(json.dumps(data, indent=2))
+        # Get price change from Binance
+        price_change = get_price_change_24h(symbol)
+        print(f"\nPrice change from Binance: {price_change}%")
         
         # Extract metrics based on API4 topic endpoint response format
         result = {
@@ -245,8 +312,8 @@ def get_lunarcrush_data(symbol: str):
             "social_engagement": float(data["data"].get("interactions_24h", 0)),  # 24h interactions
             "social_sentiment": float(data["data"].get("types_sentiment", {}).get("tweet", 50)) / 100,  # Tweet sentiment
             "average_sentiment": float(data["data"].get("types_sentiment", {}).get("tweet", 50)) / 100,  # Average sentiment
-            "tweet_sentiment_impact": float(data["data"].get("interactions_24h", 0)),  # Interaction impact
-            "percent_change_24h": float(data.get("price_change_24h", 0)),
+            "tweet_sentiment_impact": float(data["data"].get("interactions_24h", 0)) * (float(data["data"].get("types_sentiment", {}).get("tweet", 50)) / 100),  # Impact weighted by actual sentiment
+            "percent_change_24h": price_change,  # Use Binance price data
             # Sentiment breakdown from types_sentiment_detail
             "tweet_sentiment5": float(data["data"].get("types_sentiment_detail", {}).get("tweet", {}).get("positive", 0)),  # Bullish
             "tweet_sentiment4": float(data["data"].get("types_sentiment_detail", {}).get("tweet", {}).get("neutral", 0)),   # Neutral
@@ -328,25 +395,29 @@ def social_monitor_agent(state: AgentState):
                 # Calculate sentiment score from various metrics
                 sentiment_score = calculate_sentiment_score(social_metrics)
                 
-                # Generate detailed reasoning with new metrics section
+                # Create detailed reasoning
                 reasoning = (
-                    f"Social Media Analysis for {crypto}:\n\n"
+                    f"Social Media Analysis for {data['crypto']}:\n\n"
                     f"1. Social Metrics:\n"
-                    f"   • Volume: {social_metrics['social_volume']:,}\n"
-                    f"   • Contributors: {social_metrics['social_contributors']:,}\n"
-                    f"   • Engagement: {social_metrics['social_engagement']:,}\n\n"
+                    f"   • Volume: {social_metrics['social_volume']:,} posts in last 24h\n"
+                    f"   • Contributors: {social_metrics['social_contributors']:,} unique users posting\n"
+                    f"   • Engagement (ⓘ): {social_metrics['social_engagement']:,} total interactions\n\n"
                     f"2. Sentiment Analysis:\n"
-                    f"   • Average Sentiment: {social_metrics['average_sentiment']:.2f}\n"
-                    f"   • Sentiment Impact: {social_metrics['tweet_sentiment_impact']:,}\n"
-                    f"   • 24h Change: {social_metrics['percent_change_24h']:.2f}%\n\n"
-                    f"3. Tweet Sentiment:\n"
-                    f"   • Bullish Posts: {social_metrics['tweet_sentiment5']:,}\n"
-                    f"   • Neutral Posts: {social_metrics['tweet_sentiment4']:,}\n"
-                    f"   • Bearish Posts: {social_metrics['tweet_sentiment1']:,}\n\n"
-                    f"4. Social Strength:\n"
-                    f"   • AltRank™: #{social_metrics['alt_rank']} (Performance score relative to all assets)\n"
-                    f"   • Social Dominance: {social_metrics['social_dominance']:.1f}% (% of total social volume)\n\n"
-                    f"5. Overall Sentiment Score: {sentiment_score:.2f}"
+                    f"   • Average Sentiment: {social_metrics['average_sentiment']:.2f} (0-1 scale, >0.5 is bullish)\n"
+                    f"   • Sentiment Impact: {social_metrics['tweet_sentiment_impact']:,.2f} weighted engagement score\n"
+                    f"   • 24h Price Change: {social_metrics['percent_change_24h']:.2f}%\n\n"
+                    f"3. Tweet Sentiment Distribution:\n"
+                    f"   • Bullish Posts: {social_metrics['tweet_sentiment5']:,} (positive sentiment)\n"
+                    f"   • Neutral Posts: {social_metrics['tweet_sentiment4']:,} (neutral sentiment)\n"
+                    f"   • Bearish Posts: {social_metrics['tweet_sentiment1']:,} (negative sentiment)\n\n"
+                    f"4. Social Strength Metrics:\n"
+                    f"   • AltRank™: #{social_metrics['alt_rank']} (Lower rank = stronger performance)\n"
+                    f"      Previous rank: #{social_metrics['alt_rank_previous']}\n"
+                    f"      Change: {social_metrics['alt_rank'] - social_metrics['alt_rank_previous']:+d} positions\n"
+                    f"   • Social Dominance: {social_metrics['social_dominance']:.1f}%\n"
+                    f"      (This asset's % share of total crypto social activity)\n\n"
+                    f"5. Overall Sentiment Score: {sentiment_score:.2f}\n"
+                    f"   (Composite score from 0-1 combining all metrics above)"
                 )
                 
                 # Determine signal strength and direction

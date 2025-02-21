@@ -51,6 +51,10 @@ def risk_management_agent(state: AgentState):
     stop_loss = "{:.2%}".format(volatility * leverage)
     take_profit = stop_loss
     volatility_f = "{:.2%}".format(volatility)
+    
+    # Format max loss cash as currency without percentage
+    max_loss_cash_formatted = "${:,.2f}".format(max_loss_cash)
+    
     message_content = {
         "max_position_margin": float(max_position_margin),
         "risk_metrics": {
@@ -60,7 +64,7 @@ def risk_management_agent(state: AgentState):
         },
         "reasoning": f"Volatility={volatility:.2%},  "
         f"Max Loss as a percentage of the fund={max_loss:.2%} , "
-        f"Max Loss as cash of the fund={max_loss_cash:.2%}",
+        f"Max Loss as cash of the fund={max_loss_cash_formatted}",
     }
 
     # Create the risk management message

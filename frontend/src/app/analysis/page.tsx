@@ -136,6 +136,13 @@ interface PortfolioSettings {
   risk: number;
 }
 
+interface Cryptocurrency {
+  symbol: string;
+  name: string;
+  market_cap: number;
+  volume_24h: number;
+}
+
 export default function AnalysisPage() {
   const router = useRouter();
   
@@ -152,7 +159,7 @@ export default function AnalysisPage() {
   const [crypto, setCrypto] = useState('BTC');
   const [showDropdown, setShowDropdown] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
-  const [filteredCryptos, setFilteredCryptos] = useState(POPULAR_CRYPTOCURRENCIES);
+  const [filteredCryptos, setFilteredCryptos] = useState<Cryptocurrency[]>([]);
   const [analysis, setAnalysis] = useState<AnalysisResponse['analysis'] | null>(null);
   const [agentReasoning, setAgentReasoning] = useState<AnalysisResponse['agent_reasoning']>([]);
   const [error, setError] = useState<string | null>(null);
@@ -164,6 +171,8 @@ export default function AnalysisPage() {
     leverage: 20,
     risk: 0.01
   });
+  const [availableCoins, setAvailableCoins] = useState<Cryptocurrency[]>([]);
+  const [isLoadingCoins, setIsLoadingCoins] = useState(true);
 
   // Effect for checking Solana token balance
   useEffect(() => {
@@ -216,19 +225,80 @@ export default function AnalysisPage() {
     checkAuthorization();
   }, [isSolConnected, solBalance, router, isCheckingBalance]);
 
+  // Effect for fetching available cryptocurrencies
+  useEffect(() => {
+    async function fetchCoins() {
+      setIsLoadingCoins(true);
+      try {
+        console.log('Fetching coins from:', `${API_URL}/api/coins`);
+        const response = await fetch(`${API_URL}/api/coins`, {
+          headers: {
+            'Accept': 'application/json',
+            'Content-Type': 'application/json',
+          },
+          mode: 'cors',
+          credentials: 'same-origin'
+        });
+        
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error('API Error:', {
+            status: response.status,
+            statusText: response.statusText,
+            body: errorText
+          });
+          throw new Error(`Failed to fetch cryptocurrencies: ${response.status} ${response.statusText}`);
+        }
+        
+        const data = await response.json();
+        if (data.coins && Array.isArray(data.coins)) {
+          // Filter out duplicates based on symbol-name combination
+          const uniqueCoins = data.coins.filter((coin: Cryptocurrency, index: number, self: Cryptocurrency[]) =>
+            index === self.findIndex((c: Cryptocurrency) => c.symbol === coin.symbol && c.name === coin.name)
+          );
+          setAvailableCoins(uniqueCoins);
+          // Initially show top 100 by market cap
+          setFilteredCryptos(uniqueCoins.slice(0, 100));
+          console.log(`Loaded ${uniqueCoins.length} unique cryptocurrencies`);
+        } else {
+          console.error('Invalid API response format:', data);
+          throw new Error('Invalid response format from API');
+        }
+      } catch (error) {
+        console.error('Error fetching cryptocurrencies:', error);
+        // Fallback to hardcoded list if API fails
+        const fallbackCoins = POPULAR_CRYPTOCURRENCIES.map(coin => ({
+          ...coin,
+          market_cap: 0,
+          volume_24h: 0
+        }));
+        setAvailableCoins(fallbackCoins);
+        setFilteredCryptos(fallbackCoins);
+        setError(
+          `Failed to fetch cryptocurrency list: ${error instanceof Error ? error.message : 'Unknown error'}. Showing popular coins only.`
+        );
+      } finally {
+        setIsLoadingCoins(false);
+      }
+    }
+
+    fetchCoins();
+  }, []);
+
   // Effect for search handling
   useEffect(() => {
     if (searchTerm) {
-      const filtered = POPULAR_CRYPTOCURRENCIES.filter(
-        crypto => 
-          crypto.symbol.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          crypto.name.toLowerCase().includes(searchTerm.toLowerCase())
+      const filtered = availableCoins.filter(
+        coin => 
+          coin.symbol.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          coin.name.toLowerCase().includes(searchTerm.toLowerCase())
       );
       setFilteredCryptos(filtered);
     } else {
-      setFilteredCryptos(POPULAR_CRYPTOCURRENCIES);
+      // Show top 100 by market cap when no search term
+      setFilteredCryptos(availableCoins.slice(0, 100));
     }
-  }, [searchTerm]);
+  }, [searchTerm, availableCoins]);
 
   // Handler functions
   const handleSearch = (value: string) => {
@@ -445,24 +515,51 @@ export default function AnalysisPage() {
                       </button>
                       
                       {showDropdown && (
-                        <div 
-                          className="absolute z-10 w-full mt-1 bg-gray-700 border border-gray-600 rounded-lg shadow-lg max-h-60 overflow-auto"
-                        >
-                          {filteredCryptos.map((crypto) => (
-                            <button
-                              key={crypto.symbol}
-                              className="w-full px-4 py-2 text-left hover:bg-gray-600 focus:outline-none focus:bg-gray-600"
-                              onClick={() => {
-                                setCrypto(crypto.symbol);
-                                setSearchTerm(crypto.symbol);
-                                setShowDropdown(false);
-                              }}
-                            >
-                              <span className="font-medium">{crypto.symbol}</span>
-                              <span className="text-gray-400 ml-2">{crypto.name}</span>
-                            </button>
-                          ))}
-                          {filteredCryptos.length === 0 && (
+                        <div className="absolute z-10 w-full mt-1 bg-gray-700 border border-gray-600 rounded-lg shadow-lg max-h-60 overflow-auto scrollbar-thin scrollbar-thumb-gray-600 scrollbar-track-gray-800/50">
+                          {isLoadingCoins ? (
+                            <div className="px-4 py-2 text-gray-400">
+                              Loading cryptocurrencies...
+                            </div>
+                          ) : filteredCryptos.length > 0 ? (
+                            <>
+                              <div className="sticky top-0 bg-gray-800 p-2 border-b border-gray-600 text-xs text-gray-400">
+                                {searchTerm ? 
+                                  `Found ${filteredCryptos.length} matches` : 
+                                  `Showing top ${filteredCryptos.length} by market cap`
+                                }
+                              </div>
+                              {filteredCryptos.map((coin) => (
+                                <button
+                                  key={`${coin.symbol}-${coin.name}`}
+                                  className="w-full px-4 py-2 text-left hover:bg-gray-600 focus:outline-none focus:bg-gray-600"
+                                  onClick={() => {
+                                    setCrypto(coin.symbol);
+                                    setSearchTerm(coin.symbol);
+                                    setShowDropdown(false);
+                                  }}
+                                >
+                                  <div className="flex justify-between items-center">
+                                    <div>
+                                      <span className="font-medium">{coin.symbol}</span>
+                                      <span className="text-gray-400 ml-2">{coin.name}</span>
+                                    </div>
+                                    <div className="text-right text-sm">
+                                      {coin.market_cap > 0 && (
+                                        <span className="text-gray-500">
+                                          MCap: ${(coin.market_cap / 1e9).toFixed(2)}B
+                                        </span>
+                                      )}
+                                      {coin.volume_24h > 0 && (
+                                        <span className="text-gray-500 ml-2">
+                                          Vol: ${(coin.volume_24h / 1e6).toFixed(1)}M
+                                        </span>
+                                      )}
+                                    </div>
+                                  </div>
+                                </button>
+                              ))}
+                            </>
+                          ) : (
                             <div className="px-4 py-2 text-gray-400">
                               No cryptocurrencies found
                             </div>

@@ -54,6 +54,15 @@ interface AnalysisPanelProps {
   setShowDecisionModal: (show: boolean) => void;
 }
 
+const Tooltip: React.FC<{ text: string }> = ({ text }) => (
+  <span className="group relative inline-block">
+    <span className="cursor-help">ⓘ</span>
+    <span className="pointer-events-none absolute -top-2 left-6 w-48 rounded bg-gray-900 px-2 py-1 text-sm text-gray-300 opacity-0 transition-opacity group-hover:opacity-100">
+      {text}
+    </span>
+  </span>
+);
+
 const formatTechnicalAnalysis = (data: TechnicalAnalysis): string => {
   if (!data || typeof data !== 'object') return JSON.stringify(data, null, 2);
   
@@ -373,7 +382,17 @@ const AnalysisPanel: React.FC<AnalysisPanelProps> = ({
                           ).join(' ')}
                         </h4>
                         <pre className="whitespace-pre-wrap font-sans text-gray-300">
-                          {formatReasoning(agent.reasoning, agent.agent)}
+                          {typeof agent.reasoning === 'string' ? 
+                            agent.reasoning.split('(ⓘ)').map((part, i, arr) => 
+                              i === arr.length - 1 ? part : (
+                                <React.Fragment key={i}>
+                                  {part}
+                                  <Tooltip text="Total number of likes, comments, and shares across all posts about this cryptocurrency in the last 24 hours" />
+                                </React.Fragment>
+                              )
+                            ) : 
+                            formatReasoning(agent.reasoning, agent.agent)
+                          }
                         </pre>
                       </div>
                     ))}

@@ -6,6 +6,16 @@ import os
 from dotenv import load_dotenv
 import json
 from langchain_core.messages import HumanMessage
+import requests
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
+from datetime import datetime, timedelta
+
+# API URLs
+LUNARCRUSH_API_URL = "https://lunarcrush.com/api4/public"
+HYPERLIQUID_API_URL = os.getenv("HYPERLIQUID_API_URL")
+BINANCE_API_URL = os.getenv("BINANCE_API_URL")
+API_COPIN_OI = os.getenv("API_COPIN_OI")
 
 # Get the absolute path to the src directory
 AI_SRC = os.path.abspath(os.path.join(os.path.dirname(__file__), '../src'))
@@ -42,10 +52,12 @@ app.add_middleware(
         "http://127.0.0.1:3000",     # Alternative local address
         "http://127.0.0.1:3001",     # Alternative local address
         "http://localhost:8000",     # FastAPI server (for Swagger UI)
+        "*"                          # Allow all origins in development
     ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["*"]
 )
 
 # Define the workflow
@@ -214,6 +226,184 @@ async def analyze(request: AnalysisRequest):
         raise HTTPException(
             status_code=500,
             detail=f"Analysis failed: {error_msg}"
+        )
+
+@app.get("/api/coins")
+async def get_available_coins():
+    """Get list of available cryptocurrencies from LunarCrush."""
+    try:
+        # Create session with retries
+        session = requests.Session()
+        retries = Retry(
+            total=3,
+            backoff_factor=0.5,
+            status_forcelist=[408, 429, 500, 502, 503, 504]
+        )
+        session.mount('http://', HTTPAdapter(max_retries=retries))
+        session.mount('https://', HTTPAdapter(max_retries=retries))
+
+        # Fetch from LunarCrush API
+        endpoint = "https://lunarcrush.com/api4/public/coins/list/v1"
+        headers = {
+            'Authorization': f'Bearer {os.getenv("LUNARCRUSH_API_KEY")}',
+            'Accept': 'application/json'
+        }
+        
+        response = session.get(
+            endpoint,
+            headers=headers,
+            timeout=10
+        )
+        
+        response.raise_for_status()
+        data = response.json()
+        
+        if not data or "data" not in data:
+            raise HTTPException(
+                status_code=500,
+                detail="Invalid response from LunarCrush API"
+            )
+            
+        # Format the response
+        coins = [
+            {
+                "symbol": coin["symbol"],
+                "name": coin["name"],
+                "market_cap": coin.get("market_cap", 0),
+                "volume_24h": coin.get("volume_24h", 0)
+            }
+            for coin in data["data"]
+            if coin.get("symbol") and coin.get("name")  # Ensure required fields exist
+        ]
+        
+        # Sort by market cap
+        coins.sort(key=lambda x: x["market_cap"] or 0, reverse=True)
+        
+        return {
+            "coins": coins,
+            "total": len(coins)
+        }
+        
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to fetch cryptocurrencies: {str(e)}"
+        )
+
+@app.get("/api/check-availability/{symbol}")
+async def check_availability(symbol: str):
+    """Check if a cryptocurrency is available across all required data sources."""
+    try:
+        availability = {
+            "symbol": symbol.upper(),
+            "sources": {
+                "lunarcrush": False,
+                "hyperliquid": False,
+                "binance": False,
+                "copin": False
+            },
+            "available": False,
+            "message": ""
+        }
+        
+        # Check LunarCrush availability
+        try:
+            session = requests.Session()
+            retries = Retry(total=3, backoff_factor=0.5)
+            session.mount('http://', HTTPAdapter(max_retries=retries))
+            session.mount('https://', HTTPAdapter(max_retries=retries))
+            
+            response = session.get(
+                f"{LUNARCRUSH_API_URL}/coins/list/v1",
+                headers={'Authorization': f'Bearer {os.getenv("LUNARCRUSH_API_KEY")}'},
+                timeout=10
+            )
+            response.raise_for_status()
+            data = response.json()
+            
+            if data and "data" in data:
+                for coin in data["data"]:
+                    if coin.get("symbol") == symbol.upper():
+                        availability["sources"]["lunarcrush"] = True
+                        break
+        except Exception as e:
+            print(f"LunarCrush check error: {str(e)}")
+
+        # Check HyperLiquid availability
+        try:
+            data = {
+                "type": "candleSnapshot",
+                "req": {
+                    "coin": symbol.upper(),
+                    "interval": "1h",
+                    "startTime": int((datetime.now() - timedelta(days=1)).timestamp() * 1000),
+                    "endTime": int(datetime.now().timestamp() * 1000),
+                },
+            }
+            response = requests.post(HYPERLIQUID_API_URL, json=data)
+            if response.ok and len(response.json()) > 0:
+                availability["sources"]["hyperliquid"] = True
+        except Exception as e:
+            print(f"HyperLiquid check error: {str(e)}")
+
+        # Check Binance availability
+        try:
+            response = requests.get(
+                f"{BINANCE_API_URL}/fapi/v1/continuousKlines",
+                params={
+                    "pair": f"{symbol.upper()}",
+                    "contractType": "PERPETUAL",
+                    "interval": "1h",
+                    "limit": 1
+                }
+            )
+            if response.ok and len(response.json()) > 0:
+                availability["sources"]["binance"] = True
+        except Exception as e:
+            print(f"Binance check error: {str(e)}")
+
+        # Check Copin availability
+        try:
+            pair = f"{symbol.upper()}-USDT"
+            query = {
+                "pagination": {"limit": 1, "offset": 0},
+                "queries": [
+                    {"fieldName": "pair", "value": pair},
+                    {"fieldName": "isLong", "value": "true"},
+                ]
+            }
+            response = requests.post(
+                API_COPIN_OI,
+                headers={"Content-Type": "application/json"},
+                json=query
+            )
+            if response.ok and response.json().get("data"):
+                availability["sources"]["copin"] = True
+        except Exception as e:
+            print(f"Copin check error: {str(e)}")
+
+        # Determine overall availability
+        availability["available"] = (
+            availability["sources"]["lunarcrush"] and
+            (availability["sources"]["hyperliquid"] or availability["sources"]["binance"]) and
+            availability["sources"]["copin"]
+        )
+
+        # Generate message
+        if availability["available"]:
+            availability["message"] = "Cryptocurrency is available for analysis across all required data sources."
+        else:
+            missing_sources = [
+                source for source, available in availability["sources"].items() 
+                if not available
+            ]
+            availability["message"] = f"Missing data from: {', '.join(missing_sources)}"
+
+        return availability
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error checking availability: {str(e)}"
         )
 
 if __name__ == "__main__":
