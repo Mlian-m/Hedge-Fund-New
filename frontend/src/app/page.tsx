@@ -1,149 +1,132 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { TradingViewWidget } from '../components/TradingViewWidget';
-import AnalysisPanel from '@/components/AnalysisPanel';
+import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { useConnection, useWallet } from '@solana/wallet-adapter-react';
+import { Connection, PublicKey } from '@solana/web3.js';
 import { Header } from '../components/Header';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+const REQUIRED_HEDGY_TOKENS = 100000;
 
-const POPULAR_CRYPTOCURRENCIES = [
-  { symbol: 'BTC', name: 'Bitcoin' },
-  { symbol: 'ETH', name: 'Ethereum' },
-  { symbol: 'SOL', name: 'Solana' },
-  { symbol: 'LINK', name: 'Chainlink' },
-  { symbol: 'AVAX', name: 'Avalanche' },
-  { symbol: 'MATIC', name: 'Polygon' },
-  { symbol: 'DOT', name: 'Polkadot' },
-  { symbol: 'ADA', name: 'Cardano' },
-  { symbol: 'XRP', name: 'Ripple' },
-  { symbol: 'DOGE', name: 'Dogecoin' },
-  { symbol: 'SHIB', name: 'Shiba Inu' },
-  { symbol: 'UNI', name: 'Uniswap' },
-  { symbol: 'AAVE', name: 'Aave' },
-  { symbol: 'SNX', name: 'Synthetix' },
-  { symbol: 'OP', name: 'Optimism' },
-  { symbol: 'ARB', name: 'Arbitrum' },
-];
+// Token addresses for different networks
+const TOKEN_ADDRESSES = {
+  mainnet: '5Tytu6cHm69UN9k1ZEqrvCmfJsdUAJnTJpaAV1fZ2e4h',
+  devnet: 'Gh9ZwEmdLJ8DscKNTkTqPbNwLNNBjuSzaG9Vp2KGtKJr' // Example devnet token
+};
 
-interface AnalysisResponse {
-  analysis: {
-    portfolio: {
-      cash: string;
-      leverage: string;
-      risk: string;
-    };
-    decision: {
-      action: string;
-      quantity: number;
-      volatility: string;
-      stop_loss: string;
-      take_profit: string;
-      confidence: string;
-    };
-    agent_signals: Array<{
-      agent: string;
-      signal: string;
-      confidence: string;
-    }>;
-    reasoning: string;
-  };
-  agent_reasoning: Array<{
-    agent: string;
-    reasoning: string | object;
-  }>;
-}
+const MAX_RETRIES = 3;
+const RETRY_DELAY = 1000; // 1 second
 
-interface AnalysisRequest {
-  crypto: string;
-  startDate?: string;
-  endDate?: string;
-  balance?: number;
-  leverage?: number;
-  risk?: number;
-}
-
-interface PortfolioSettings {
-  balance: number;
-  leverage: number;
-  risk: number;
-}
-
-export default function Home() {
-  const [crypto, setCrypto] = useState('BTC');
-  const [showDropdown, setShowDropdown] = useState(false);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [filteredCryptos, setFilteredCryptos] = useState(POPULAR_CRYPTOCURRENCIES);
-  const [analysis, setAnalysis] = useState<AnalysisResponse['analysis'] | null>(null);
-  const [agentReasoning, setAgentReasoning] = useState<AnalysisResponse['agent_reasoning']>([]);
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [showSettings, setShowSettings] = useState(false);
+async function getTokenBalance(connection: Connection, address: PublicKey, tokenAddress: string, retries = 0): Promise<number> {
+  const isDevnet = connection.rpcEndpoint.includes('devnet');
   
-  // Date range state
-  const [startDate, setStartDate] = useState<string>('');
-  const [endDate, setEndDate] = useState<string>('');
-  
-  // Portfolio settings state
-  const [portfolioSettings, setPortfolioSettings] = useState<PortfolioSettings>({
-    balance: 500000,
-    leverage: 20,
-    risk: 0.01
-  });
+  // For development/testing on devnet
+  if (isDevnet) {
+    console.log('Using devnet mock balance');
+    return 150000; // Mock balance above required amount
+  }
 
-  const handleSearch = (value: string) => {
-    setSearchTerm(value.toUpperCase());
-    const filtered = POPULAR_CRYPTOCURRENCIES.filter(
-      crypto => 
-        crypto.symbol.toLowerCase().includes(value.toLowerCase()) ||
-        crypto.name.toLowerCase().includes(value.toLowerCase())
-    );
-    setFilteredCryptos(filtered);
-  };
-
-  useEffect(() => {
-    handleSearch(searchTerm);
-  }, [searchTerm]);
-
-  const handleAnalysis = async () => {
-    setIsLoading(true);
-    setError(null);
+  try {
+    console.log('Checking token balance for address:', address.toString());
+    console.log('Token address:', tokenAddress);
+    console.log('Network:', isDevnet ? 'devnet' : 'mainnet');
     
+    const tokenPublicKey = new PublicKey(tokenAddress);
+    
+    // First try getParsedTokenAccountsByOwner
     try {
-      const request: AnalysisRequest = {
-        crypto,
-        balance: portfolioSettings.balance,
-        leverage: portfolioSettings.leverage,
-        risk: portfolioSettings.risk
-      };
-
-      // Only add dates if they're set
-      if (startDate) request.startDate = startDate;
-      if (endDate) request.endDate = endDate;
-
-      const response = await fetch(`${API_URL}/api/analyze`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(request),
+      const accountInfo = await connection.getParsedTokenAccountsByOwner(address, {
+        mint: tokenPublicKey,
       });
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.detail || 'Analysis failed');
+      if (accountInfo.value.length > 0) {
+        const balance = accountInfo.value[0].account.data.parsed.info.tokenAmount.uiAmount;
+        console.log('Found token balance:', balance);
+        return balance;
+      }
+      console.log('No token accounts found with getParsedTokenAccountsByOwner');
+    } catch (e) {
+      console.warn('Failed to get parsed token accounts:', e);
+    }
+
+    // Fallback to getTokenAccountsByOwner
+    try {
+      const accounts = await connection.getTokenAccountsByOwner(address, {
+        mint: tokenPublicKey,
+      });
+
+      if (accounts.value.length > 0) {
+        const balance = await connection.getTokenAccountBalance(accounts.value[0].pubkey);
+        console.log('Found token balance using fallback:', balance.value.uiAmount);
+        return balance.value.uiAmount || 0;
+      }
+      console.log('No token accounts found with getTokenAccountsByOwner');
+    } catch (e) {
+      console.warn('Failed to get token accounts by owner:', e);
+    }
+
+    return 0;
+  } catch (error) {
+    console.error(`Error fetching token balance (attempt ${retries + 1}):`, error);
+    
+    if (retries < MAX_RETRIES) {
+      const delay = RETRY_DELAY * Math.pow(2, retries);
+      console.log(`Retrying in ${delay}ms...`);
+      await new Promise(resolve => setTimeout(resolve, delay));
+      return getTokenBalance(connection, address, tokenAddress, retries + 1);
+    }
+    
+    console.error('Failed to fetch token balance after all retries');
+    return 0;
+  }
+}
+
+export default function HomePage() {
+  const router = useRouter();
+  
+  // Solana wallet state
+  const { publicKey: solAddress, connected: isSolConnected } = useWallet();
+  const { connection } = useConnection();
+  const [solBalance, setSolBalance] = useState<number>(0);
+  
+  const [isAuthorized, setIsAuthorized] = useState(false);
+  const [isChecking, setIsChecking] = useState(true);
+
+  // Effect for checking Solana token balance
+  useEffect(() => {
+    async function checkSolanaBalance() {
+      if (!solAddress || !isSolConnected) {
+        setSolBalance(0);
+        setIsChecking(false);
+        return;
       }
 
-      const data: AnalysisResponse = await response.json();
-      setAnalysis(data.analysis);
-      setAgentReasoning(data.agent_reasoning);
-    } catch (err: unknown) {
-      const errorMessage = err instanceof Error ? err.message : 'An unknown error occurred';
-      setError(errorMessage);
-      setAnalysis(null);
-      setAgentReasoning([]);
-    } finally {
-      setIsLoading(false);
+      try {
+        const isDevnet = connection.rpcEndpoint.includes('devnet');
+        const tokenAddress = isDevnet ? TOKEN_ADDRESSES.devnet : TOKEN_ADDRESSES.mainnet;
+        console.log('Using token address:', tokenAddress, 'on', isDevnet ? 'devnet' : 'mainnet');
+        
+        const balance = await getTokenBalance(connection, solAddress, tokenAddress);
+        setSolBalance(balance);
+      } catch (error) {
+        console.error('Failed to fetch token balance:', error);
+        setSolBalance(0);
+      }
+      setIsChecking(false);
+    }
+
+    checkSolanaBalance();
+  }, [solAddress, isSolConnected, connection]);
+
+  // Check authorization based on token balance
+  useEffect(() => {
+    const hasEnoughTokens = solBalance >= REQUIRED_HEDGY_TOKENS;
+    setIsAuthorized(hasEnoughTokens);
+  }, [solBalance]);
+
+  const handleEnterDashboard = () => {
+    if (isAuthorized) {
+      router.push('/analysis');
     }
   };
 
@@ -151,196 +134,64 @@ export default function Home() {
     <main className="min-h-screen bg-gray-900 text-white">
       <Header />
       
-      <div className="container mx-auto px-4 py-8">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* Analysis Panel - Now on the left and wider */}
-          <div className="lg:col-span-2 space-y-4">
-            <div className="bg-gray-800 rounded-lg p-4">
-              <div className="mb-4">
-                <div className="flex justify-between items-center mb-4">
-                  <label htmlFor="crypto" className="block text-sm font-medium">
-                    Cryptocurrency
-                  </label>
-                  <button
-                    onClick={() => setShowSettings(!showSettings)}
-                    className="text-sm text-blue-400 hover:text-blue-300"
-                  >
-                    {showSettings ? 'Hide Settings' : 'Show Settings'}
-                  </button>
-                </div>
-
-                {showSettings && (
-                  <div className="mb-4 space-y-4 p-4 bg-gray-700/50 rounded-lg">
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <label className="block text-sm text-gray-300 mb-1">Start Date</label>
-                        <input
-                          type="date"
-                          value={startDate}
-                          onChange={(e) => setStartDate(e.target.value)}
-                          className="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm text-gray-300 mb-1">End Date</label>
-                        <input
-                          type="date"
-                          value={endDate}
-                          onChange={(e) => setEndDate(e.target.value)}
-                          className="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        />
-                      </div>
-                    </div>
-
-                    <div>
-                      <label className="block text-sm text-gray-300 mb-1">Balance ($)</label>
-                      <input
-                        type="number"
-                        value={portfolioSettings.balance}
-                        onChange={(e) => setPortfolioSettings(prev => ({
-                          ...prev,
-                          balance: Number(e.target.value)
-                        }))}
-                        min="0"
-                        step="10000"
-                        className="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-sm text-gray-300 mb-1">Leverage (x)</label>
-                      <input
-                        type="number"
-                        value={portfolioSettings.leverage}
-                        onChange={(e) => setPortfolioSettings(prev => ({
-                          ...prev,
-                          leverage: Number(e.target.value)
-                        }))}
-                        min="1"
-                        max="125"
-                        className="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-sm text-gray-300 mb-1">Risk per Trade (%)</label>
-                      <input
-                        type="number"
-                        value={portfolioSettings.risk * 100}
-                        onChange={(e) => setPortfolioSettings(prev => ({
-                          ...prev,
-                          risk: Number(e.target.value) / 100
-                        }))}
-                        min="0.1"
-                        max="100"
-                        step="0.1"
-                        className="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      />
-                      <p className="text-xs text-gray-400 mt-1">
-                        Max loss per trade: ${(portfolioSettings.balance * portfolioSettings.risk).toLocaleString()}
-                      </p>
-                    </div>
-                  </div>
-                )}
-
-                <div className="relative">
-                  <div className="flex gap-2">
-                    <div className="relative flex-1">
-                      <input
-                        type="text"
-                        id="crypto"
-                        value={searchTerm}
-                        onChange={(e) => {
-                          handleSearch(e.target.value);
-                          setShowDropdown(true);
-                        }}
-                        onFocus={() => setShowDropdown(true)}
-                        className="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        placeholder="Enter or select crypto (e.g. BTC)"
-                      />
-                      <button
-                        type="button"
-                        className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-300"
-                        onClick={() => setShowDropdown(!showDropdown)}
-                      >
-                        <svg
-                          className="w-5 h-5"
-                          fill="none"
-                          stroke="currentColor"
-                          viewBox="0 0 24 24"
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={2}
-                            d={showDropdown ? "M5 15l7-7 7 7" : "M19 9l-7 7-7-7"}
-                          />
-                        </svg>
-                      </button>
-                      
-                      {showDropdown && (
-                        <div 
-                          className="absolute z-10 w-full mt-1 bg-gray-700 border border-gray-600 rounded-lg shadow-lg max-h-60 overflow-auto"
-                        >
-                          {filteredCryptos.map((crypto) => (
-                            <button
-                              key={crypto.symbol}
-                              className="w-full px-4 py-2 text-left hover:bg-gray-600 focus:outline-none focus:bg-gray-600"
-                              onClick={() => {
-                                setCrypto(crypto.symbol);
-                                setSearchTerm(crypto.symbol);
-                                setShowDropdown(false);
-                              }}
-                            >
-                              <span className="font-medium">{crypto.symbol}</span>
-                              <span className="text-gray-400 ml-2">{crypto.name}</span>
-                            </button>
-                          ))}
-                          {filteredCryptos.length === 0 && (
-                            <div className="px-4 py-2 text-gray-400">
-                              No cryptocurrencies found
-                            </div>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                    <button
-                      onClick={() => {
-                        setCrypto(searchTerm);
-                        handleAnalysis();
-                      }}
-                      disabled={isLoading}
-                      className={`px-4 py-2 rounded-lg transition-colors ${
-                        isLoading 
-                          ? 'bg-blue-400 cursor-not-allowed'
-                          : 'bg-blue-500 hover:bg-blue-600'
-                      }`}
-                    >
-                      {isLoading ? 'Analyzing...' : 'Analyze'}
-                    </button>
-                  </div>
-                </div>
-                {error && (
-                  <div className="mt-2 p-2 bg-red-900/50 border border-red-500 rounded-lg">
-                    <p className="text-red-200 text-sm">{error}</p>
-                  </div>
-                )}
-              </div>
+      <div className="container mx-auto px-4">
+        <div className="max-w-2xl mx-auto mt-20 text-center">
+          <h1 className="text-4xl font-bold mb-6">
+            Hedgy Dashboard
+          </h1>
+          
+          <div className="bg-gray-800 rounded-lg p-8 shadow-lg">
+            <div className="mb-6">
+              <h2 className="text-xl font-semibold mb-4">
+                Access Requirements
+              </h2>
+              <p className="text-gray-300 mb-4">
+                To access the Dashboard, you need to:
+              </p>
+              <ul className="text-left text-gray-300 space-y-2 mb-6">
+                <li className="flex items-center">
+                  <span className={`mr-2 ${isSolConnected ? 'text-green-500' : 'text-gray-500'}`}>
+                    {isSolConnected ? '✓' : '○'}
+                  </span>
+                  Connect your Solana wallet
+                </li>
+                <li className="flex items-center">
+                  <span className={`mr-2 ${isAuthorized ? 'text-green-500' : 'text-gray-500'}`}>
+                    {isAuthorized ? '✓' : '○'}
+                  </span>
+                  Hold at least {REQUIRED_HEDGY_TOKENS.toLocaleString()} Spark tokens
+                </li>
+              </ul>
             </div>
             
-            <AnalysisPanel
-              analysis={analysis}
-              isLoading={isLoading}
-              error={error}
-              agentReasoning={agentReasoning}
-            />
-          </div>
-          
-          {/* Trading View Chart - Now on the right and smaller */}
-          <div className="space-y-4">
-            <div className="bg-gray-800 rounded-lg p-4">
-              <TradingViewWidget symbol={`${crypto}USDT`} />
-            </div>
+            {isChecking ? (
+              <div className="text-center">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto mb-2"></div>
+                <p className="text-gray-400">Checking requirements...</p>
+              </div>
+            ) : isSolConnected ? (
+              <div>
+                {isAuthorized ? (
+                  <button
+                    onClick={handleEnterDashboard}
+                    className="bg-blue-500 hover:bg-blue-600 text-white font-semibold py-2 px-6 rounded-lg transition-colors"
+                  >
+                    Enter Dashboard
+                  </button>
+                ) : (
+                  <div className="text-yellow-400 p-4 bg-yellow-400/10 rounded-lg">
+                    <p>You need at least {REQUIRED_HEDGY_TOKENS.toLocaleString()} Spark tokens to access the dashboard.</p>
+                    <div className="mt-2 text-sm">
+                      Current balance: {solBalance.toLocaleString()} Spark
+                    </div>
+                  </div>
+                )}
+                            </div>
+            ) : (
+              <div className="text-gray-400">
+                Please connect your Solana wallet to check access requirements
+              </div>
+            )}
           </div>
         </div>
         </div>

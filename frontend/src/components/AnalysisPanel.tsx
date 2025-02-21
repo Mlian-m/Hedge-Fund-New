@@ -81,6 +81,8 @@ const AnalysisPanel: React.FC<AnalysisPanelProps> = ({
   error,
   agentReasoning = []
 }) => {
+  const [showDecisionModal, setShowDecisionModal] = React.useState(false);
+
   if (isLoading) {
     return (
       <div className="animate-pulse space-y-4">
@@ -148,7 +150,78 @@ const AnalysisPanel: React.FC<AnalysisPanelProps> = ({
       </div>
 
       <div>
-        <h2 className="text-xl font-bold mb-4">Trading Decision</h2>
+        <div className="flex items-center gap-2 mb-4">
+          <h2 className="text-xl font-bold">Trading Decision</h2>
+          <button
+            onClick={() => setShowDecisionModal(true)}
+            className="text-gray-400 hover:text-gray-300 focus:outline-none"
+            aria-label="Trading decision explanation"
+          >
+            ℹ️
+          </button>
+        </div>
+
+        {/* Decision Modal */}
+        {showDecisionModal && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+            <div className="bg-gray-800 border border-gray-700 rounded-lg p-6 max-w-2xl w-full mx-4 relative">
+              <button
+                onClick={() => setShowDecisionModal(false)}
+                className="absolute top-4 right-4 text-gray-400 hover:text-gray-300"
+                aria-label="Close modal"
+              >
+                ✕
+              </button>
+              
+              <h3 className="text-xl font-semibold text-blue-400 mb-4">How Trading Decisions Are Made</h3>
+              
+              <div className="space-y-6">
+                <div>
+                  <p className="text-gray-300 mb-4">Trading decisions are calculated using a weighted combination of four key factors, ensuring a balanced and risk-aware approach to market analysis.</p>
+                  
+                  <div className="space-y-4">
+                    <div className="bg-gray-700/50 rounded-lg p-4">
+                      <h4 className="font-semibold text-blue-400 mb-2">Risk Management (50%)</h4>
+                      <p className="text-gray-300">Primary constraint that sets position limits and stop-loss levels. This factor has the highest weight to ensure proper risk control.</p>
+                    </div>
+                    
+                    <div className="bg-gray-700/50 rounded-lg p-4">
+                      <h4 className="font-semibold text-green-400 mb-2">Technical Analysis (25%)</h4>
+                      <p className="text-gray-300">Used for entry/exit timing and trend confirmation. Analyzes price patterns, momentum indicators, and volume metrics to identify optimal trading opportunities.</p>
+                    </div>
+                    
+                    <div className="bg-gray-700/50 rounded-lg p-4">
+                      <h4 className="font-semibold text-purple-400 mb-2">Social Monitoring (15%)</h4>
+                      <p className="text-gray-300">Tracks social trends, community engagement, and market attention. Includes metrics like AltRank™ and Social Dominance from LunarCrush to gauge market momentum.</p>
+                    </div>
+                    
+                    <div className="bg-gray-700/50 rounded-lg p-4">
+                      <h4 className="font-semibold text-yellow-400 mb-2">Sentiment Analysis (10%)</h4>
+                      <p className="text-gray-300">Analyzes market sentiment indicators and insider activity to provide broader market context and emotional state.</p>
+                    </div>
+                  </div>
+                </div>
+                
+                <div className="border-t border-gray-600 pt-4">
+                  <h4 className="font-semibold text-gray-300 mb-2">Decision Process</h4>
+                  <ol className="list-decimal list-inside space-y-2 text-gray-300">
+                    <li>Risk management constraints are evaluated first</li>
+                    <li>Technical analysis signals determine timing</li>
+                    <li>Social and sentiment data provide final adjustments</li>
+                    <li>Position size is calculated based on risk parameters</li>
+                  </ol>
+                </div>
+                
+                <div className="bg-blue-900/20 border border-blue-700/50 rounded-lg p-4 mt-4">
+                  <p className="text-blue-300 text-sm">
+                    <strong>Note:</strong> Risk management always takes precedence to ensure proper position sizing and risk control, regardless of other signals.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
         <div className="bg-gray-800/50 border border-gray-700 rounded-lg p-4 space-y-4">
           <div className="flex justify-between items-center">
             <span className="text-gray-400">Recommended Action:</span>

@@ -1,18 +1,37 @@
 'use client';
 
-import { Web3Button } from '@web3modal/react';
+import { usePathname } from 'next/navigation';
+import Link from 'next/link';
+import { WalletButton } from './WalletButton';
 
 export function Header() {
+  const pathname = usePathname();
+  
   return (
     <header className="bg-gray-800 border-b border-gray-700">
       <div className="container mx-auto px-4 py-4">
         <div className="flex justify-between items-center">
-          <div className="flex items-center gap-2">
-            <h1 className="text-xl font-bold">AI Hedge Fund Manager</h1>
+          <div className="flex items-center gap-6">
+            <Link href="/" className="text-xl font-bold hover:text-blue-400 transition-colors">
+              Hedgy Dashboard
+            </Link>
+            
+            <nav className="hidden md:flex items-center gap-4">
+              <Link 
+                href="/analysis"
+                className={`text-sm ${
+                  pathname === '/analysis' 
+                    ? 'text-blue-400 font-medium' 
+                    : 'text-gray-300 hover:text-white'
+                }`}
+              >
+                Analysis Tool
+              </Link>
+            </nav>
           </div>
           
           <div className="flex items-center gap-4">
-            <Web3Button />
+            <WalletButton />
           </div>
         </div>
       </div>
