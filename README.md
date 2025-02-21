@@ -1,3 +1,12 @@
+#Mili Setup
+To run backend first :
+cd backend
+.\venv\Scripts\activate && pip install -r requirements.txt
+
+To run frontend :
+cd frontend && npm run dev
+
+
 # AIBrokers
 
 The first real-world AI hedge fund framework in crypto, fully open source!

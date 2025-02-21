@@ -27,6 +27,11 @@ interface AnalysisResult {
     confidence: string;
   }>;
   reasoning: string;
+  social_metrics?: {
+    alt_rank: number;
+    alt_rank_previous: number;
+    social_dominance: number;
+  };
 }
 
 interface TechnicalStrategy {
@@ -211,6 +216,61 @@ const AnalysisPanel: React.FC<AnalysisPanelProps> = ({
           </div>
         </div>
       </div>
+
+      {analysis.social_metrics ? (
+        <div>
+          <h2 className="text-xl font-bold mb-4">Social Strength</h2>
+          <div className="bg-gray-800/50 border border-gray-700 rounded-lg p-4 space-y-4">
+            <div className="flex justify-between items-center">
+              <div>
+                <span className="text-gray-400">AltRank™:</span>
+                <span className="text-xs text-gray-500 block">
+                  (A proprietary score based on how an asset is performing relative to all other assets supported)
+                </span>
+              </div>
+              <div className="text-right">
+                <span className="font-bold text-blue-500">
+                  #{analysis.social_metrics.alt_rank}
+                </span>
+                {analysis.social_metrics.alt_rank !== analysis.social_metrics.alt_rank_previous && (
+                  <span className="ml-2 text-sm">
+                    {analysis.social_metrics.alt_rank < analysis.social_metrics.alt_rank_previous ? (
+                      <span className="text-green-500">↑</span>
+                    ) : (
+                      <span className="text-red-500">↓</span>
+                    )}
+                    <span className="text-gray-500 text-xs ml-1">
+                      from #{analysis.social_metrics.alt_rank_previous}
+                    </span>
+                  </span>
+                )}
+              </div>
+            </div>
+            
+            <div className="flex justify-between items-center">
+              <div>
+                <span className="text-gray-400">Social Dominance:</span>
+                <span className="text-xs text-gray-500 block">
+                  (The percent of total social volume that this topic represents)
+                </span>
+              </div>
+              <span className="font-bold text-purple-500">
+                {analysis.social_metrics.social_dominance.toFixed(1)}%
+              </span>
+            </div>
+          </div>
+        </div>
+      ) : (
+        <div>
+          <h2 className="text-xl font-bold mb-4">Social Strength</h2>
+          <div className="bg-gray-800/50 border border-gray-700 rounded-lg p-4">
+            <div className="text-center text-gray-400">
+              <p>AltRank™ and Social Dominance metrics are temporarily unavailable.</p>
+              <p className="text-sm mt-1">Please try again later.</p>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div>
         <h3 className="text-lg font-semibold mb-3">Detailed Analysis</h3>

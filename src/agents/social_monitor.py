@@ -42,7 +42,8 @@ CRYPTO_TOPIC_MAP = {
 LUNARCRUSH_CONFIG = {
     "update_interval": 300,  # 5 minutes
     "endpoints": {
-        "topic": "/topic/{topic}/v1",  # Updated to use topic endpoint
+        "topic": "/topic/{topic}/v1",  # For social metrics
+        "coins": "/coins/list/v1",     # For AltRank and Social Dominance
         "influencers": "/influencers/list/v1",
         "feeds": "/feeds/list/v1"
     },
@@ -127,6 +128,67 @@ def extract_hostname(url):
     from urllib.parse import urlparse
     return urlparse(url).netloc
 
+def get_coin_metrics(symbol: str):
+    """
+    Fetch AltRank and Social Dominance from LunarCrush coins/list endpoint
+    """
+    if not LUNARCRUSH_API_KEY:
+        print("Warning: LUNARCRUSH_API_KEY not found in environment variables")
+        return None
+    
+    session = create_session_with_retries()
+    
+    try:
+        # Use the /coins/list endpoint
+        endpoint = f"{LUNARCRUSH_API_URL}/coins/list/v1"
+        print(f"\nFetching coin metrics from: {endpoint}")
+        
+        headers = {
+            'Authorization': f'Bearer {LUNARCRUSH_API_KEY}',
+            'Accept': 'application/json'
+        }
+        
+        response = session.get(
+            endpoint,
+            headers=headers,
+            timeout=10,
+            verify=True
+        )
+        
+        response.raise_for_status()
+        data = response.json()
+        
+        if not data or "data" not in data:
+            print("No data found in coins API response")
+            return None
+            
+        # Find the coin in the list
+        coin_data = None
+        for coin in data["data"]:
+            if coin.get("symbol") == symbol.upper():
+                coin_data = coin
+                break
+        
+        if not coin_data:
+            print(f"No coin data found for {symbol}")
+            return None
+            
+        # Extract AltRank and Social Dominance
+        result = {
+            "alt_rank": int(coin_data.get("alt_rank", 0)),
+            "alt_rank_previous": int(coin_data.get("alt_rank_previous", 0)),
+            "social_dominance": float(coin_data.get("social_dominance", 0))
+        }
+        
+        print(f"\nCoin Metrics for {symbol}:")
+        print(json.dumps(result, indent=2))
+        
+        return result
+            
+    except Exception as e:
+        print(f"Error fetching coin metrics: {str(e)}")
+        return None
+
 def get_lunarcrush_data(symbol: str):
     """
     Fetch social metrics from LunarCrush API4 with improved error handling and retries.
@@ -188,8 +250,20 @@ def get_lunarcrush_data(symbol: str):
             # Sentiment breakdown from types_sentiment_detail
             "tweet_sentiment5": float(data["data"].get("types_sentiment_detail", {}).get("tweet", {}).get("positive", 0)),  # Bullish
             "tweet_sentiment4": float(data["data"].get("types_sentiment_detail", {}).get("tweet", {}).get("neutral", 0)),   # Neutral
-            "tweet_sentiment1": float(data["data"].get("types_sentiment_detail", {}).get("tweet", {}).get("negative", 0))   # Bearish
+            "tweet_sentiment1": float(data["data"].get("types_sentiment_detail", {}).get("tweet", {}).get("negative", 0)),   # Bearish
         }
+        
+        # Get additional coin metrics
+        coin_metrics = get_coin_metrics(symbol)
+        if coin_metrics:
+            result.update({
+                "alt_rank": coin_metrics["alt_rank"],
+                "alt_rank_previous": coin_metrics["alt_rank_previous"],
+                "social_dominance": coin_metrics["social_dominance"]
+            })
+        else:
+            # Instead of using placeholder values, don't include these metrics
+            print(f"Warning: Could not fetch AltRank and Social Dominance metrics for {symbol}")
         
         # Debug: Print extracted metrics
         print("\nExtracted Metrics:")
@@ -254,7 +328,7 @@ def social_monitor_agent(state: AgentState):
                 # Calculate sentiment score from various metrics
                 sentiment_score = calculate_sentiment_score(social_metrics)
                 
-                # Generate detailed reasoning
+                # Generate detailed reasoning with new metrics section
                 reasoning = (
                     f"Social Media Analysis for {crypto}:\n\n"
                     f"1. Social Metrics:\n"
@@ -269,7 +343,10 @@ def social_monitor_agent(state: AgentState):
                     f"   • Bullish Posts: {social_metrics['tweet_sentiment5']:,}\n"
                     f"   • Neutral Posts: {social_metrics['tweet_sentiment4']:,}\n"
                     f"   • Bearish Posts: {social_metrics['tweet_sentiment1']:,}\n\n"
-                    f"4. Overall Sentiment Score: {sentiment_score:.2f}"
+                    f"4. Social Strength:\n"
+                    f"   • AltRank™: #{social_metrics['alt_rank']} (Performance score relative to all assets)\n"
+                    f"   • Social Dominance: {social_metrics['social_dominance']:.1f}% (% of total social volume)\n\n"
+                    f"5. Overall Sentiment Score: {sentiment_score:.2f}"
                 )
                 
                 # Determine signal strength and direction

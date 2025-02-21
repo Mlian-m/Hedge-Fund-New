@@ -167,6 +167,19 @@ async def analyze(request: AnalysisRequest):
                                 "reasoning": strategy_summary
                             }
                             print(f"\nProcessed Technical Analysis:", json.dumps(strategy_summary, indent=2))
+                        elif message.name == "social_monitor_agent":
+                            # Extract social metrics if available
+                            social_metrics = content.get("social_metrics", {})
+                            if social_metrics:
+                                final_decision["social_metrics"] = {
+                                    "alt_rank": social_metrics.get("alt_rank", 0),
+                                    "alt_rank_previous": social_metrics.get("alt_rank_previous", 0),
+                                    "social_dominance": social_metrics.get("social_dominance", 0)
+                                }
+                            agent_messages[message.name] = {
+                                "agent": message.name,
+                                "reasoning": content.get("reasoning", content)
+                            }
                         else:
                             agent_messages[message.name] = {
                                 "agent": message.name,
