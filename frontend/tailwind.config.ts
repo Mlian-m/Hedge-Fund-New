@@ -1,4 +1,6 @@
 import type { Config } from "tailwindcss";
+// @ts-expect-error - tailwind-scrollbar doesn't have proper types
+import scrollbar from "tailwind-scrollbar";
 
 export default {
   content: [
@@ -14,5 +16,7 @@ export default {
       },
     },
   },
-  plugins: [],
+  plugins: [
+    scrollbar({ nocompatible: true }),
+  ],
 } satisfies Config;

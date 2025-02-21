@@ -148,6 +148,7 @@ export default function AnalysisPage() {
   const [isAuthorized, setIsAuthorized] = useState(false);
   const [isCheckingBalance, setIsCheckingBalance] = useState(true);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [showDecisionModal, setShowDecisionModal] = useState(false);
   const [crypto, setCrypto] = useState('BTC');
   const [showDropdown, setShowDropdown] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
@@ -192,17 +193,27 @@ export default function AnalysisPage() {
 
   // Effect for authorization check
   useEffect(() => {
-    if (!isSolConnected) {
-      router.push('/');
-      return;
-    }
+    const checkAuthorization = async () => {
+      try {
+        if (!isSolConnected) {
+          await router.replace('/');
+          return;
+        }
 
-    const hasEnoughTokens = solBalance >= REQUIRED_HEDGY_TOKENS;
-    setIsAuthorized(hasEnoughTokens);
-    
-    if (!hasEnoughTokens && !isCheckingBalance) {
-      router.push('/');
-    }
+        const hasEnoughTokens = solBalance >= REQUIRED_HEDGY_TOKENS;
+        setIsAuthorized(hasEnoughTokens);
+        
+        if (!hasEnoughTokens && !isCheckingBalance) {
+          await router.replace('/');
+        }
+      } catch (error) {
+        console.warn('Navigation error:', error);
+        // If navigation fails, at least update the UI state
+        setIsAuthorized(false);
+      }
+    };
+
+    checkAuthorization();
   }, [isSolConnected, solBalance, router, isCheckingBalance]);
 
   // Effect for search handling
@@ -493,11 +504,32 @@ export default function AnalysisPage() {
               isLoading={isAnalyzing}
               error={error}
               agentReasoning={agentReasoning}
+              showDecisionModal={showDecisionModal}
+              setShowDecisionModal={setShowDecisionModal}
             />
           </div>
           
-          {/* Trading View Chart - Now on the right and smaller */}
+          {/* Right sidebar with How It Works and Trading View */}
           <div className="space-y-4">
+            <div className="bg-gray-800 rounded-lg p-4">
+              <div className="flex justify-between items-center mb-3">
+                <h2 className="text-lg font-semibold">How It Works</h2>
+                <button
+                  onClick={() => setShowDecisionModal(true)}
+                  className="text-sm bg-blue-500 hover:bg-blue-600 text-white px-3 py-1.5 rounded-lg transition-colors"
+                >
+                  Learn more
+                </button>
+              </div>
+              <p className="text-sm text-gray-300">
+                Our AI combines four key factors to make trading decisions: Risk Management (50%), 
+                Technical Analysis (25%), Social Monitoring (15%), and Sentiment Analysis (10%). 
+                Risk management sets position limits and stop-losses, while technical analysis 
+                determines timing. Social and sentiment data provide final adjustments for a 
+                comprehensive trading strategy.
+              </p>
+            </div>
+
             <div className="bg-gray-800 rounded-lg p-4">
               <TradingViewWidget symbol={`${crypto}USDT`} />
             </div>
