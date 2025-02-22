@@ -171,8 +171,8 @@ const AnalysisPanel: React.FC<AnalysisPanelProps> = ({
           </div>
         </div>
       </div>
-    </div>
-  );
+      </div>
+    );
 
   const getSignalColor = (signal?: string) => {
     if (!signal) return 'text-yellow-500';
@@ -197,191 +197,191 @@ const AnalysisPanel: React.FC<AnalysisPanelProps> = ({
         <>
           {analysis && (
             <>
-              <div>
-                <h2 className="text-xl font-bold mb-4">Portfolio Settings</h2>
-                <div className="bg-gray-800/50 border border-gray-700 rounded-lg p-4 space-y-4">
-                  <div className="flex justify-between items-center">
-                    <span className="text-gray-400">Available Cash:</span>
-                    <span className="font-bold text-green-500">
-                      ${Number(analysis.portfolio.cash).toLocaleString()}
-                    </span>
-                  </div>
-                  
-                  <div className="flex justify-between items-center">
-                    <span className="text-gray-400">Leverage:</span>
-                    <span className="font-bold text-yellow-500">
-                      {analysis.portfolio.leverage}x
-                    </span>
-                  </div>
+      <div>
+        <h2 className="text-xl font-bold mb-4">Portfolio Settings</h2>
+        <div className="bg-gray-800/50 border border-gray-700 rounded-lg p-4 space-y-4">
+          <div className="flex justify-between items-center">
+            <span className="text-gray-400">Available Cash:</span>
+            <span className="font-bold text-green-500">
+              ${Number(analysis.portfolio.cash).toLocaleString()}
+            </span>
+          </div>
+          
+          <div className="flex justify-between items-center">
+            <span className="text-gray-400">Leverage:</span>
+            <span className="font-bold text-yellow-500">
+              {analysis.portfolio.leverage}x
+            </span>
+          </div>
 
-                  <div className="flex justify-between items-center">
-                    <span className="text-gray-400">Risk per Trade:</span>
-                    <span className="font-bold text-red-500">
-                      {(Number(analysis.portfolio.risk) * 100).toFixed(1)}%
-                    </span>
-                  </div>
+          <div className="flex justify-between items-center">
+            <span className="text-gray-400">Risk per Trade:</span>
+            <span className="font-bold text-red-500">
+              {(Number(analysis.portfolio.risk) * 100).toFixed(1)}%
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <div className="flex items-center gap-2 mb-4">
+          <h2 className="text-xl font-bold">Trading Decision</h2>
+          <button
+            onClick={() => setShowDecisionModal(true)}
+            className="text-gray-400 hover:text-gray-300 focus:outline-none"
+            aria-label="Trading decision explanation"
+          >
+            ℹ️
+          </button>
+        </div>
+
+        <div className="bg-gray-800/50 border border-gray-700 rounded-lg p-4 space-y-4">
+          <div className="flex justify-between items-center">
+            <span className="text-gray-400">Recommended Action:</span>
+            <span className={`font-bold ${signalColor}`}>
+              {analysis.decision.action.toUpperCase()}
+            </span>
+          </div>
+          
+          <div className="flex justify-between items-center">
+            <span className="text-gray-400">Signal Confidence:</span>
+            <span className="font-bold text-blue-500">
+              {analysis.decision.confidence}
+            </span>
+          </div>
+
+          <div className="border-t border-gray-700 my-4"></div>
+
+          <div>
+            <h3 className="text-sm font-semibold text-gray-300 mb-2">Position Details</h3>
+            
+            <div className="space-y-2">
+              <div className="flex justify-between items-center">
+                <span className="text-gray-400">Position Size:</span>
+                <div className="text-right">
+                  <span className="font-bold text-orange-500 block">
+                    {analysis.decision.quantity.toLocaleString()} contracts
+                  </span>
+                  <span className="text-xs text-gray-500">
+                    (Based on risk management and leverage settings)
+                  </span>
                 </div>
               </div>
 
-              <div>
-                <div className="flex items-center gap-2 mb-4">
-                  <h2 className="text-xl font-bold">Trading Decision</h2>
-                  <button
-                    onClick={() => setShowDecisionModal(true)}
-                    className="text-gray-400 hover:text-gray-300 focus:outline-none"
-                    aria-label="Trading decision explanation"
-                  >
-                    ℹ️
-                  </button>
-                </div>
-
-                <div className="bg-gray-800/50 border border-gray-700 rounded-lg p-4 space-y-4">
-                  <div className="flex justify-between items-center">
-                    <span className="text-gray-400">Recommended Action:</span>
-                    <span className={`font-bold ${signalColor}`}>
-                      {analysis.decision.action.toUpperCase()}
-                    </span>
-                  </div>
-                  
-                  <div className="flex justify-between items-center">
-                    <span className="text-gray-400">Signal Confidence:</span>
-                    <span className="font-bold text-blue-500">
-                      {analysis.decision.confidence}
-                    </span>
-                  </div>
-
-                  <div className="border-t border-gray-700 my-4"></div>
-
-                  <div>
-                    <h3 className="text-sm font-semibold text-gray-300 mb-2">Position Details</h3>
-                    
-                    <div className="space-y-2">
-                      <div className="flex justify-between items-center">
-                        <span className="text-gray-400">Position Size:</span>
-                        <div className="text-right">
-                          <span className="font-bold text-orange-500 block">
-                            {analysis.decision.quantity.toLocaleString()} contracts
-                          </span>
-                          <span className="text-xs text-gray-500">
-                            (Based on risk management and leverage settings)
-                          </span>
-                        </div>
-                      </div>
-
-                      <div className="flex justify-between items-center">
-                        <span className="text-gray-400">Market Volatility:</span>
-                        <span className="font-bold text-purple-500">
-                          {analysis.decision.volatility}
-                        </span>
-                      </div>
-
-                      <div className="flex justify-between items-center">
-                        <div>
-                          <span className="text-gray-400">Stop Loss:</span>
-                          <span className="text-xs text-gray-500 block">
-                            (Maximum loss per position)
-                          </span>
-                        </div>
-                        <span className="font-bold text-red-500">
-                          {analysis.decision.stop_loss}
-                        </span>
-                      </div>
-
-                      <div className="flex justify-between items-center">
-                        <div>
-                          <span className="text-gray-400">Take Profit:</span>
-                          <span className="text-xs text-gray-500 block">
-                            (Target profit level)
-                          </span>
-                        </div>
-                        <span className="font-bold text-green-500">
-                          {analysis.decision.take_profit}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
+              <div className="flex justify-between items-center">
+                <span className="text-gray-400">Market Volatility:</span>
+                <span className="font-bold text-purple-500">
+                  {analysis.decision.volatility}
+                </span>
               </div>
 
-              {analysis.social_metrics ? (
+              <div className="flex justify-between items-center">
                 <div>
-                  <h2 className="text-xl font-bold mb-4">Social Strength</h2>
-                  <div className="bg-gray-800/50 border border-gray-700 rounded-lg p-4 space-y-4">
-                    <div className="flex justify-between items-center">
-                      <div>
-                        <span className="text-gray-400">AltRank™:</span>
-                        <span className="text-xs text-gray-500 block">
-                          (A proprietary score based on how an asset is performing relative to all other assets supported)
-                        </span>
-                      </div>
-                      <div className="text-right">
-                        <span className="font-bold text-blue-500">
-                          #{analysis.social_metrics.alt_rank}
-                        </span>
-                        {analysis.social_metrics.alt_rank !== analysis.social_metrics.alt_rank_previous && (
-                          <span className="ml-2 text-sm">
-                            {analysis.social_metrics.alt_rank < analysis.social_metrics.alt_rank_previous ? (
-                              <span className="text-green-500">↑</span>
-                            ) : (
-                              <span className="text-red-500">↓</span>
-                            )}
-                            <span className="text-gray-500 text-xs ml-1">
-                              from #{analysis.social_metrics.alt_rank_previous}
-                            </span>
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                    
-                    <div className="flex justify-between items-center">
-                      <div>
-                        <span className="text-gray-400">Social Dominance:</span>
-                        <span className="text-xs text-gray-500 block">
-                          (The percent of total social volume that this topic represents)
-                        </span>
-                      </div>
-                      <span className="font-bold text-purple-500">
-                        {analysis.social_metrics.social_dominance.toFixed(1)}%
-                      </span>
-                    </div>
-                  </div>
+                  <span className="text-gray-400">Stop Loss:</span>
+                  <span className="text-xs text-gray-500 block">
+                    (Maximum loss per position)
+                  </span>
                 </div>
-              ) : (
-                <div>
-                  <h2 className="text-xl font-bold mb-4">Social Strength</h2>
-                  <div className="bg-gray-800/50 border border-gray-700 rounded-lg p-4">
-                    <div className="text-center text-gray-400">
-                      <p>AltRank™ and Social Dominance metrics are temporarily unavailable.</p>
-                      <p className="text-sm mt-1">Please try again later.</p>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              <div>
-                <h3 className="text-lg font-semibold mb-3">Detailed Analysis</h3>
-                <div className="bg-gray-800/50 border border-gray-700 rounded-lg p-4">
-                  <pre className="whitespace-pre-wrap font-sans text-gray-300">
-                    {analysis.reasoning}
-                  </pre>
-                </div>
+                <span className="font-bold text-red-500">
+                  {analysis.decision.stop_loss}
+                </span>
               </div>
 
-              {agentReasoning.length > 0 && (
+              <div className="flex justify-between items-center">
                 <div>
-                  <h3 className="text-lg font-semibold mb-3">Agent Reasoning</h3>
-                  <div className="space-y-4">
-                    {agentReasoning.map((agent, index) => (
-                      <div 
-                        key={index}
-                        className="bg-gray-800/50 border border-gray-700 rounded-lg p-4"
-                      >
-                        <h4 className="text-blue-400 font-medium mb-2">
-                          {agent.agent.replace(/_/g, ' ').split(' ').map(word => 
-                            word.charAt(0).toUpperCase() + word.slice(1)
-                          ).join(' ')}
-                        </h4>
-                        <pre className="whitespace-pre-wrap font-sans text-gray-300">
+                  <span className="text-gray-400">Take Profit:</span>
+                  <span className="text-xs text-gray-500 block">
+                    (Target profit level)
+                  </span>
+                </div>
+                <span className="font-bold text-green-500">
+                  {analysis.decision.take_profit}
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {analysis.social_metrics ? (
+        <div>
+          <h2 className="text-xl font-bold mb-4">Social Strength</h2>
+          <div className="bg-gray-800/50 border border-gray-700 rounded-lg p-4 space-y-4">
+            <div className="flex justify-between items-center">
+              <div>
+                <span className="text-gray-400">AltRank™:</span>
+                <span className="text-xs text-gray-500 block">
+                  (A proprietary score based on how an asset is performing relative to all other assets supported)
+                </span>
+              </div>
+              <div className="text-right">
+                <span className="font-bold text-blue-500">
+                  #{analysis.social_metrics.alt_rank}
+                </span>
+                {analysis.social_metrics.alt_rank !== analysis.social_metrics.alt_rank_previous && (
+                  <span className="ml-2 text-sm">
+                    {analysis.social_metrics.alt_rank < analysis.social_metrics.alt_rank_previous ? (
+                      <span className="text-green-500">↑</span>
+                    ) : (
+                      <span className="text-red-500">↓</span>
+                    )}
+                    <span className="text-gray-500 text-xs ml-1">
+                      from #{analysis.social_metrics.alt_rank_previous}
+                    </span>
+                  </span>
+                )}
+              </div>
+            </div>
+            
+            <div className="flex justify-between items-center">
+              <div>
+                <span className="text-gray-400">Social Dominance:</span>
+                <span className="text-xs text-gray-500 block">
+                  (The percent of total social volume that this topic represents)
+                </span>
+              </div>
+              <span className="font-bold text-purple-500">
+                {analysis.social_metrics.social_dominance.toFixed(1)}%
+              </span>
+            </div>
+          </div>
+        </div>
+      ) : (
+        <div>
+          <h2 className="text-xl font-bold mb-4">Social Strength</h2>
+          <div className="bg-gray-800/50 border border-gray-700 rounded-lg p-4">
+            <div className="text-center text-gray-400">
+              <p>AltRank™ and Social Dominance metrics are temporarily unavailable.</p>
+              <p className="text-sm mt-1">Please try again later.</p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <div>
+        <h3 className="text-lg font-semibold mb-3">Detailed Analysis</h3>
+        <div className="bg-gray-800/50 border border-gray-700 rounded-lg p-4">
+          <pre className="whitespace-pre-wrap font-sans text-gray-300">
+            {analysis.reasoning}
+          </pre>
+        </div>
+      </div>
+
+      {agentReasoning.length > 0 && (
+        <div>
+          <h3 className="text-lg font-semibold mb-3">Agent Reasoning</h3>
+          <div className="space-y-4">
+            {agentReasoning.map((agent, index) => (
+              <div 
+                key={index}
+                className="bg-gray-800/50 border border-gray-700 rounded-lg p-4"
+              >
+                <h4 className="text-blue-400 font-medium mb-2">
+                  {agent.agent.replace(/_/g, ' ').split(' ').map(word => 
+                    word.charAt(0).toUpperCase() + word.slice(1)
+                  ).join(' ')}
+                </h4>
+                <pre className="whitespace-pre-wrap font-sans text-gray-300">
                           {typeof agent.reasoning === 'string' ? 
                             agent.reasoning.split('(ⓘ)').map((part, i, arr) => 
                               i === arr.length - 1 ? part : (
@@ -393,11 +393,11 @@ const AnalysisPanel: React.FC<AnalysisPanelProps> = ({
                             ) : 
                             formatReasoning(agent.reasoning, agent.agent)
                           }
-                        </pre>
-                      </div>
-                    ))}
-                  </div>
-                </div>
+                </pre>
+              </div>
+            ))}
+          </div>
+        </div>
               )}
             </>
           )}

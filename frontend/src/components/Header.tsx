@@ -28,6 +28,16 @@ export function Header() {
             >
               Analysis Tool
             </Link>
+            <Link 
+              href="/scanner"
+              className={`text-sm ${
+                pathname === '/scanner' 
+                  ? 'text-blue-400 font-medium' 
+                  : 'text-gray-300 hover:text-white'
+              }`}
+            >
+              Scanner
+            </Link>
             <WalletButton />
           </div>
         </div>
