@@ -18,6 +18,8 @@ interface Memecoin {
   volume_24h: number;
   alt_rank: number;
   alt_rank_previous: number;
+  galaxy_score: number;
+  galaxy_score_previous: number;
   social_dominance: number;
   sentiment: number;
   sentiment_relative: number;
@@ -32,6 +34,14 @@ interface PaginationData {
   total: number;
   totalPages: number;
   hasMore: boolean;
+}
+
+type SortField = 'alt_rank' | 'galaxy_score' | 'sentiment' | 'name' | 'price_change_24h' | 'market_cap' | 'volume_24h';
+type SortDirection = 'asc' | 'desc';
+
+interface SortConfig {
+  field: SortField;
+  direction: SortDirection;
 }
 
 async function getTokenBalance(connection: Connection, walletAddress: PublicKey, tokenMintAddress: string): Promise<number> {
@@ -64,6 +74,7 @@ export default function ScannerPage() {
   const [tokenBalance, setTokenBalance] = useState(0);
   const [isAuthorized, setIsAuthorized] = useState(false);
   const [checkError, setCheckError] = useState<string | null>(null);
+  const [sort, setSort] = useState<SortConfig>({ field: 'alt_rank', direction: 'asc' });
   const [pagination, setPagination] = useState<PaginationData>({
     page: 1,
     limit: 100,
@@ -174,6 +185,57 @@ export default function ScannerPage() {
     }
   }, [isAuthorized]);
 
+  const handleSort = (field: SortField) => {
+    setSort(prevSort => ({
+      field,
+      direction: prevSort.field === field && prevSort.direction === 'asc' ? 'desc' : 'asc'
+    }));
+  };
+
+  const getSortedMemecoins = () => {
+    return [...memecoins].sort((a, b) => {
+      const direction = sort.direction === 'asc' ? 1 : -1;
+      
+      switch (sort.field) {
+        case 'alt_rank':
+          return (a.alt_rank - b.alt_rank) * direction;
+        case 'galaxy_score':
+          return (b.galaxy_score - a.galaxy_score) * direction; // Higher is better
+        case 'sentiment':
+          return (b.sentiment - a.sentiment) * direction; // Higher is better
+        case 'name':
+          return a.name.localeCompare(b.name) * direction;
+        case 'price_change_24h':
+          return (b.price_change_24h - a.price_change_24h) * direction;
+        case 'market_cap':
+          return (b.market_cap - a.market_cap) * direction;
+        case 'volume_24h':
+          return (b.volume_24h - a.volume_24h) * direction;
+        default:
+          return 0;
+      }
+    });
+  };
+
+  const renderSortIcon = (field: SortField) => {
+    if (sort.field !== field) {
+      return (
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4 opacity-30">
+          <path fillRule="evenodd" d="M10 3a.75.75 0 01.55.24l3.25 3.5a.75.75 0 11-1.1 1.02L10 4.852 7.3 7.76a.75.75 0 01-1.1-1.02l3.25-3.5A.75.75 0 0110 3zm-3.76 9.2a.75.75 0 011.06.04l2.7 2.908 2.7-2.908a.75.75 0 111.1 1.02l-3.25 3.5a.75.75 0 01-1.1 0l-3.25-3.5a.75.75 0 01.04-1.06z" clipRule="evenodd" />
+        </svg>
+      );
+    }
+    return sort.direction === 'asc' ? (
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
+        <path fillRule="evenodd" d="M10 17a.75.75 0 01-.75-.75V5.612L5.29 9.77a.75.75 0 01-1.08-1.04l5.25-5.5a.75.75 0 011.08 0l5.25 5.5a.75.75 0 11-1.08 1.04l-3.96-4.158V16.25A.75.75 0 0110 17z" clipRule="evenodd" />
+      </svg>
+    ) : (
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
+        <path fillRule="evenodd" d="M10 3a.75.75 0 01.75.75v10.638l3.96-4.158a.75.75 0 111.08 1.04l-5.25 5.5a.75.75 0 01-1.08 0l-5.25-5.5a.75.75 0 111.08-1.04l3.96 4.158V3.75A.75.75 0 0110 3z" clipRule="evenodd" />
+      </svg>
+    );
+  };
+
   return (
     <main className="min-h-screen bg-gray-900 text-white">
       <Header />
@@ -240,43 +302,102 @@ export default function ScannerPage() {
                       <tr className="bg-gray-800 text-left">
                         <th className="p-4 font-semibold w-[140px]">
                           <div className="group relative">
-                            <div className="flex flex-col">
-                              <span>AltRank™</span>
-                              <span className="text-[10px] text-gray-400">Lower = Better</span>
-                            </div>
+                            <button 
+                              onClick={() => handleSort('alt_rank')}
+                              className="flex items-center gap-2 hover:text-blue-400 transition-colors"
+                            >
+                              <div className="flex flex-col">
+                                <span>AltRank™</span>
+                                <span className="text-[10px] text-gray-400">Lower = Better</span>
+                              </div>
+                              {renderSortIcon('alt_rank')}
+                            </button>
                             <div className="absolute top-full left-0 mt-2 px-3 py-2 w-80 text-sm font-normal text-white bg-gray-900 rounded-md opacity-0 group-hover:opacity-100 transition-opacity z-10 shadow-lg">
                               A proprietary LunarCrush score based on how an asset is performing relative to all other assets supported
                             </div>
                           </div>
                         </th>
+                        <th className="p-4 font-semibold w-[140px]">
+                          <div className="group relative">
+                            <button 
+                              onClick={() => handleSort('galaxy_score')}
+                              className="flex items-center gap-2 hover:text-blue-400 transition-colors"
+                            >
+                              <div className="flex flex-col">
+                                <span>HedgyScore</span>
+                                <span className="text-[10px] text-gray-400">Higher = Better</span>
+                              </div>
+                              {renderSortIcon('galaxy_score')}
+                            </button>
+                            <div className="absolute top-full left-0 mt-2 px-3 py-2 w-80 text-sm font-normal text-white bg-gray-900 rounded-md opacity-0 group-hover:opacity-100 transition-opacity z-10 shadow-lg">
+                              A proprietary score based on technical indicators of price, average social sentiment, relative social activity, and a factor of how closely social indicators correlate with price and volume.
+                            </div>
+                          </div>
+                        </th>
                         <th className="p-4 font-semibold w-[180px]">
                           <div className="group relative">
-                            <div className="flex flex-col">
-                              <span>Sentiment</span>
-                              <span className="text-[10px] text-gray-400">Higher = Better</span>
-                            </div>
+                            <button 
+                              onClick={() => handleSort('sentiment')}
+                              className="flex items-center gap-2 hover:text-blue-400 transition-colors"
+                            >
+                              <div className="flex flex-col">
+                                <span>Sentiment</span>
+                                <span className="text-[10px] text-gray-400">Higher = Better</span>
+                              </div>
+                              {renderSortIcon('sentiment')}
+                            </button>
                             <div className="absolute top-full left-0 mt-2 px-3 py-2 w-80 text-sm font-normal text-white bg-gray-900 rounded-md opacity-0 group-hover:opacity-100 transition-opacity z-10 shadow-lg">
                               % of posts (weighted by interactions) that are positive. 100% means all posts are positive, 50% is half positive and half negative, and 0% is all negative posts.
                             </div>
                           </div>
                         </th>
-                        <th className="p-4 font-semibold min-w-[200px]">Name</th>
+                        <th className="p-4 font-semibold min-w-[200px]">
+                          <button 
+                            onClick={() => handleSort('name')}
+                            className="flex items-center gap-2 hover:text-blue-400 transition-colors"
+                          >
+                            <span>Name</span>
+                            {renderSortIcon('name')}
+                          </button>
+                        </th>
                         <th className="p-4 font-semibold w-[160px]">Network</th>
                         <th className="p-4 font-semibold w-[120px]">
                           <div className="group relative">
-                            <span>24h Change</span>
+                            <button 
+                              onClick={() => handleSort('price_change_24h')}
+                              className="flex items-center gap-2 hover:text-blue-400 transition-colors"
+                            >
+                              <span>24h Change</span>
+                              {renderSortIcon('price_change_24h')}
+                            </button>
                             <div className="absolute top-full left-0 mt-2 px-3 py-2 w-80 text-sm font-normal text-white bg-gray-900 rounded-md opacity-0 group-hover:opacity-100 transition-opacity z-10 shadow-lg">
                               Percent change in price since 24 hours ago
                             </div>
                           </div>
                         </th>
-                        <th className="p-4 font-semibold w-[120px]">Market Cap</th>
-                        <th className="p-4 font-semibold w-[120px]">Volume (24h)</th>
+                        <th className="p-4 font-semibold w-[120px]">
+                          <button 
+                            onClick={() => handleSort('market_cap')}
+                            className="flex items-center gap-2 hover:text-blue-400 transition-colors"
+                          >
+                            <span>Market Cap</span>
+                            {renderSortIcon('market_cap')}
+                          </button>
+                        </th>
+                        <th className="p-4 font-semibold w-[120px]">
+                          <button 
+                            onClick={() => handleSort('volume_24h')}
+                            className="flex items-center gap-2 hover:text-blue-400 transition-colors"
+                          >
+                            <span>Volume (24h)</span>
+                            {renderSortIcon('volume_24h')}
+                          </button>
+                        </th>
                         <th className="p-4 font-semibold w-[80px]">Actions</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-700">
-                      {memecoins.map((coin) => (
+                      {getSortedMemecoins().map((coin) => (
                         <tr key={coin.id} className="hover:bg-gray-800/50">
                           <td className="p-4 whitespace-nowrap">
                             <div>
@@ -290,6 +411,23 @@ export default function ScannerPage() {
                                   )}
                                   <span className="text-gray-500 text-xs ml-1">
                                     from #{coin.alt_rank_previous}
+                                  </span>
+                                </span>
+                              )}
+                            </div>
+                          </td>
+                          <td className="p-4 whitespace-nowrap">
+                            <div>
+                              <span className="font-medium">{coin.galaxy_score}</span>
+                              {coin.galaxy_score !== coin.galaxy_score_previous && (
+                                <span className="ml-2 text-sm">
+                                  {coin.galaxy_score > coin.galaxy_score_previous ? (
+                                    <span className="text-green-500">↑</span>
+                                  ) : (
+                                    <span className="text-red-500">↓</span>
+                                  )}
+                                  <span className="text-gray-500 text-xs ml-1">
+                                    from {coin.galaxy_score_previous}
                                   </span>
                                 </span>
                               )}

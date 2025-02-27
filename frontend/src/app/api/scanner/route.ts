@@ -22,6 +22,8 @@ interface LunarCrushCoin {
   volume_24h: string;
   alt_rank: string;
   alt_rank_previous: string;
+  galaxy_score: string;
+  galaxy_score_previous: string;
   social_dominance: string;
   sentiment: string;
   sentiment_relative: string;
@@ -150,6 +152,8 @@ export async function GET(request: NextRequest) {
         volume_24h: parseFloat(coin.volume_24h) || 0,
         alt_rank: parseInt(coin.alt_rank) || 0,
         alt_rank_previous: parseInt(coin.alt_rank_previous) || 0,
+        galaxy_score: parseInt(coin.galaxy_score) || 0,
+        galaxy_score_previous: parseInt(coin.galaxy_score_previous) || 0,
         social_dominance: parseFloat(coin.social_dominance) || 0,
         sentiment: parseFloat(coin.sentiment) || 0,
         sentiment_relative: parseFloat(coin.sentiment_relative) || 0,
