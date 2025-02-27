@@ -26,6 +26,14 @@ interface Memecoin {
   address: string;
 }
 
+interface PaginationData {
+  page: number;
+  limit: number;
+  total: number;
+  totalPages: number;
+  hasMore: boolean;
+}
+
 async function getTokenBalance(connection: Connection, walletAddress: PublicKey, tokenMintAddress: string): Promise<number> {
   try {
     const tokenAccounts = await connection.getParsedTokenAccountsByOwner(
@@ -49,12 +57,20 @@ async function getTokenBalance(connection: Connection, walletAddress: PublicKey,
 export default function ScannerPage() {
   const [memecoins, setMemecoins] = useState<Memecoin[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [tokenBalance, setTokenBalance] = useState(0);
   const [isAuthorized, setIsAuthorized] = useState(false);
   const [checkError, setCheckError] = useState<string | null>(null);
+  const [pagination, setPagination] = useState<PaginationData>({
+    page: 1,
+    limit: 100,
+    total: 0,
+    totalPages: 1,
+    hasMore: false
+  });
   
   const { connected, publicKey: walletAddress } = useWallet();
 
@@ -114,15 +130,27 @@ export default function ScannerPage() {
     checkBalance();
   }, [walletAddress, connected]);
 
-  const fetchMemecoins = async () => {
-    setIsLoading(true);
+  const fetchMemecoins = async (page = 1, append = false) => {
+    if (page === 1) {
+      setIsLoading(true);
+    } else {
+      setIsLoadingMore(true);
+    }
+
     try {
-      const response = await fetch('/api/scanner');
+      const response = await fetch(`/api/scanner?page=${page}&limit=${pagination.limit}`);
       if (!response.ok) {
         throw new Error('Failed to fetch memecoins');
       }
       const data = await response.json();
-      setMemecoins(data.data || []);
+      
+      if (append) {
+        setMemecoins(prev => [...prev, ...data.data]);
+      } else {
+        setMemecoins(data.data || []);
+      }
+      
+      setPagination(data.pagination);
       setLastUpdated(new Date());
       setError(null);
     } catch (error) {
@@ -130,7 +158,13 @@ export default function ScannerPage() {
       setError('Failed to load memecoins data');
     } finally {
       setIsLoading(false);
+      setIsLoadingMore(false);
     }
+  };
+
+  const loadMore = () => {
+    if (!pagination.hasMore || isLoadingMore) return;
+    fetchMemecoins(pagination.page + 1, true);
   };
 
   // Only fetch data when authorized
@@ -174,7 +208,7 @@ export default function ScannerPage() {
                   </p>
                 )}
                 <button
-                  onClick={fetchMemecoins}
+                  onClick={() => fetchMemecoins(1)}
                   disabled={isLoading}
                   className={`px-4 py-2 rounded-lg font-medium transition-colors ${
                     isLoading
@@ -199,154 +233,179 @@ export default function ScannerPage() {
                 {error}
               </div>
             ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full border-collapse">
-                  <thead>
-                    <tr className="bg-gray-800 text-left">
-                      <th className="p-4 font-semibold w-[140px]">
-                        <div className="group relative">
-                          <div className="flex flex-col">
-                            <span>AltRank™</span>
-                            <span className="text-[10px] text-gray-400">Lower = Better</span>
-                          </div>
-                          <div className="absolute top-full left-0 mt-2 px-3 py-2 w-80 text-sm font-normal text-white bg-gray-900 rounded-md opacity-0 group-hover:opacity-100 transition-opacity z-10 shadow-lg">
-                            A proprietary LunarCrush score based on how an asset is performing relative to all other assets supported
-                          </div>
-                        </div>
-                      </th>
-                      <th className="p-4 font-semibold w-[180px]">
-                        <div className="group relative">
-                          <div className="flex flex-col">
-                            <span>Sentiment</span>
-                            <span className="text-[10px] text-gray-400">Higher = Better</span>
-                          </div>
-                          <div className="absolute top-full left-0 mt-2 px-3 py-2 w-80 text-sm font-normal text-white bg-gray-900 rounded-md opacity-0 group-hover:opacity-100 transition-opacity z-10 shadow-lg">
-                            % of posts (weighted by interactions) that are positive. 100% means all posts are positive, 50% is half positive and half negative, and 0% is all negative posts.
-                          </div>
-                        </div>
-                      </th>
-                      <th className="p-4 font-semibold min-w-[200px]">Name</th>
-                      <th className="p-4 font-semibold w-[160px]">Network</th>
-                      <th className="p-4 font-semibold w-[120px]">
-                        <div className="group relative">
-                          <span>24h Change</span>
-                          <div className="absolute top-full left-0 mt-2 px-3 py-2 w-80 text-sm font-normal text-white bg-gray-900 rounded-md opacity-0 group-hover:opacity-100 transition-opacity z-10 shadow-lg">
-                            Percent change in price since 24 hours ago
-                          </div>
-                        </div>
-                      </th>
-                      <th className="p-4 font-semibold w-[120px]">Market Cap</th>
-                      <th className="p-4 font-semibold w-[120px]">Volume (24h)</th>
-                      <th className="p-4 font-semibold w-[80px]">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-700">
-                    {memecoins.map((coin) => (
-                      <tr key={coin.id} className="hover:bg-gray-800/50">
-                        <td className="p-4 whitespace-nowrap">
-                          <div>
-                            <span className="font-medium">#{coin.alt_rank}</span>
-                            {coin.alt_rank !== coin.alt_rank_previous && (
-                              <span className="ml-2 text-sm">
-                                {coin.alt_rank < coin.alt_rank_previous ? (
-                                  <span className="text-green-500">↑</span>
-                                ) : (
-                                  <span className="text-red-500">↓</span>
-                                )}
-                                <span className="text-gray-500 text-xs ml-1">
-                                  from #{coin.alt_rank_previous}
-                                </span>
-                              </span>
-                            )}
-                          </div>
-                        </td>
-                        <td className="p-4 whitespace-nowrap">
-                          <div>
-                            <span className={`font-medium ${
-                              coin.sentiment > 60 ? 'text-green-500' : 
-                              coin.sentiment > 40 ? 'text-yellow-500' : 
-                              'text-red-500'
-                            }`}>
-                              {coin.sentiment.toFixed(1)}%
-                            </span>
-                          </div>
-                        </td>
-                        <td className="p-4 whitespace-nowrap">
-                          <div className="flex items-center gap-3">
-                            <div className="flex-shrink-0 w-8 h-8 relative">
-                              <img 
-                                src={coin.logo} 
-                                alt={`${coin.name} logo`}
-                                width={32}
-                                height={32}
-                                className="rounded-full w-8 h-8 object-cover bg-gray-700"
-                                onError={(e) => {
-                                  const target = e.target as HTMLImageElement;
-                                  // Try the alternative URL format first
-                                  if (!target.src.includes('/assets/coins/')) {
-                                    target.src = `https://cdn.lunarcrush.com/assets/coins/${coin.symbol.toLowerCase()}/logo.png`;
-                                  } else {
-                                    // If both URLs fail, use the generic icon
-                                    target.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzIiIGhlaWdodD0iMzIiIHZpZXdCb3g9IjAgMCAzMiAzMiIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMzIiIGhlaWdodD0iMzIiIHJ4PSIxNiIgZmlsbD0iIzJEMzc0OCIvPjxwYXRoIGQ9Ik0xNiA4QzExLjU4MTcgOCA4IDExLjU4MTcgOCAxNkM4IDIwLjQxODMgMTEuNTgxNyAyNCAxNiAyNEMyMC40MTgzIDI0IDI0IDIwLjQxODMgMjQgMTZDMjQgMTEuNTgxNyAyMC40MTgzIDggMTYgOFoiIHN0cm9rZT0iIzRCNTU2MyIgc3Ryb2tlLXdpZHRoPSIyIi8+PC9zdmc+';
-                                    target.onerror = null; // Prevent further retries
-                                  }
-                                }}
-                              />
+              <>
+                <div className="overflow-x-auto">
+                  <table className="w-full border-collapse">
+                    <thead>
+                      <tr className="bg-gray-800 text-left">
+                        <th className="p-4 font-semibold w-[140px]">
+                          <div className="group relative">
+                            <div className="flex flex-col">
+                              <span>AltRank™</span>
+                              <span className="text-[10px] text-gray-400">Lower = Better</span>
                             </div>
-                            <div className="min-w-0">
-                              <div className="font-medium truncate flex items-center gap-2">
-                                <span>{coin.name}</span>
-                                <span className="text-gray-400 text-sm">{coin.symbol}</span>
+                            <div className="absolute top-full left-0 mt-2 px-3 py-2 w-80 text-sm font-normal text-white bg-gray-900 rounded-md opacity-0 group-hover:opacity-100 transition-opacity z-10 shadow-lg">
+                              A proprietary LunarCrush score based on how an asset is performing relative to all other assets supported
+                            </div>
+                          </div>
+                        </th>
+                        <th className="p-4 font-semibold w-[180px]">
+                          <div className="group relative">
+                            <div className="flex flex-col">
+                              <span>Sentiment</span>
+                              <span className="text-[10px] text-gray-400">Higher = Better</span>
+                            </div>
+                            <div className="absolute top-full left-0 mt-2 px-3 py-2 w-80 text-sm font-normal text-white bg-gray-900 rounded-md opacity-0 group-hover:opacity-100 transition-opacity z-10 shadow-lg">
+                              % of posts (weighted by interactions) that are positive. 100% means all posts are positive, 50% is half positive and half negative, and 0% is all negative posts.
+                            </div>
+                          </div>
+                        </th>
+                        <th className="p-4 font-semibold min-w-[200px]">Name</th>
+                        <th className="p-4 font-semibold w-[160px]">Network</th>
+                        <th className="p-4 font-semibold w-[120px]">
+                          <div className="group relative">
+                            <span>24h Change</span>
+                            <div className="absolute top-full left-0 mt-2 px-3 py-2 w-80 text-sm font-normal text-white bg-gray-900 rounded-md opacity-0 group-hover:opacity-100 transition-opacity z-10 shadow-lg">
+                              Percent change in price since 24 hours ago
+                            </div>
+                          </div>
+                        </th>
+                        <th className="p-4 font-semibold w-[120px]">Market Cap</th>
+                        <th className="p-4 font-semibold w-[120px]">Volume (24h)</th>
+                        <th className="p-4 font-semibold w-[80px]">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-700">
+                      {memecoins.map((coin) => (
+                        <tr key={coin.id} className="hover:bg-gray-800/50">
+                          <td className="p-4 whitespace-nowrap">
+                            <div>
+                              <span className="font-medium">#{coin.alt_rank}</span>
+                              {coin.alt_rank !== coin.alt_rank_previous && (
+                                <span className="ml-2 text-sm">
+                                  {coin.alt_rank < coin.alt_rank_previous ? (
+                                    <span className="text-green-500">↑</span>
+                                  ) : (
+                                    <span className="text-red-500">↓</span>
+                                  )}
+                                  <span className="text-gray-500 text-xs ml-1">
+                                    from #{coin.alt_rank_previous}
+                                  </span>
+                                </span>
+                              )}
+                            </div>
+                          </td>
+                          <td className="p-4 whitespace-nowrap">
+                            <div>
+                              <span className={`font-medium ${
+                                coin.sentiment > 60 ? 'text-green-500' : 
+                                coin.sentiment > 40 ? 'text-yellow-500' : 
+                                'text-red-500'
+                              }`}>
+                                {coin.sentiment.toFixed(1)}%
+                              </span>
+                            </div>
+                          </td>
+                          <td className="p-4 whitespace-nowrap">
+                            <div className="flex items-center gap-3">
+                              <div className="flex-shrink-0 w-8 h-8 relative">
+                                <img 
+                                  src={coin.logo} 
+                                  alt={`${coin.name} logo`}
+                                  width={32}
+                                  height={32}
+                                  className="rounded-full w-8 h-8 object-cover bg-gray-700"
+                                  onError={(e) => {
+                                    const target = e.target as HTMLImageElement;
+                                    // Try the alternative URL format first
+                                    if (!target.src.includes('/assets/coins/')) {
+                                      target.src = `https://cdn.lunarcrush.com/assets/coins/${coin.symbol.toLowerCase()}/logo.png`;
+                                    } else {
+                                      // If both URLs fail, use the generic icon
+                                      target.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzIiIGhlaWdodD0iMzIiIHZpZXdCb3g9IjAgMCAzMiAzMiIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMzIiIGhlaWdodD0iMzIiIHJ4PSIxNiIgZmlsbD0iIzJEMzc0OCIvPjxwYXRoIGQ9Ik0xNiA4QzExLjU4MTcgOCA4IDExLjU4MTcgOCAxNkM4IDIwLjQxODMgMTEuNTgxNyAyNCAxNiAyNEMyMC40MTgzIDI0IDI0IDIwLjQxODMgMjQgMTZDMjQgMTEuNTgxNyAyMC40MTgzIDggMTYgOFoiIHN0cm9rZT0iIzRCNTU2MyIgc3Ryb2tlLXdpZHRoPSIyIi8+PC9zdmc+';
+                                      target.onerror = null; // Prevent further retries
+                                    }
+                                  }}
+                                />
+                              </div>
+                              <div className="min-w-0">
+                                <div className="font-medium truncate flex items-center gap-2">
+                                  <span>{coin.name}</span>
+                                  <span className="text-gray-400 text-sm">{coin.symbol}</span>
+                                </div>
                               </div>
                             </div>
-                          </div>
-                        </td>
-                        <td className="p-4 whitespace-nowrap">
-                          <div className="flex items-center gap-2">
-                            <span className="px-2 py-1 bg-gray-700 rounded text-xs font-medium">
-                              {coin.network}
-                            </span>
-                            {coin.address !== 'Unknown' && (
-                              <button
-                                onClick={() => handleCopy(coin.id, coin.address)}
-                                className="text-gray-400 hover:text-blue-400 transition-colors group relative"
-                                title="Copy address"
-                              >
-                                {copiedId === coin.id ? (
-                                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4 text-green-500">
-                                    <path fillRule="evenodd" d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z" clipRule="evenodd" />
-                                  </svg>
-                                ) : (
-                                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
-                                    <path d="M7 3.5A1.5 1.5 0 018.5 2h3.879a1.5 1.5 0 011.06.44l3.122 3.12A1.5 1.5 0 0117 6.622V12.5a1.5 1.5 0 01-1.5 1.5h-1v-3.379a3 3 0 00-.879-2.121L10.5 5.379A3 3 0 008.379 4.5H7v-1z" />
-                                    <path d="M4.5 6A1.5 1.5 0 003 7.5v9A1.5 1.5 0 004.5 18h7a1.5 1.5 0 001.5-1.5v-5.879a1.5 1.5 0 00-.44-1.06L9.44 6.439A1.5 1.5 0 008.378 6H4.5z" />
-                                  </svg>
-                                )}
-                                <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 text-xs font-medium text-white bg-gray-900 rounded-md opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
-                                  {copiedId === coin.id ? 'Copied!' : 'Copy address'}
-                                </span>
-                              </button>
-                            )}
-                          </div>
-                        </td>
-                        <td className={`p-4 whitespace-nowrap ${coin.price_change_24h >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-                          {coin.price_change_24h.toFixed(2)}%
-                        </td>
-                        <td className="p-4 whitespace-nowrap">${(coin.market_cap / 1e6).toFixed(2)}M</td>
-                        <td className="p-4 whitespace-nowrap">${(coin.volume_24h / 1e6).toFixed(2)}M</td>
-                        <td className="p-4 whitespace-nowrap">
-                          <Link
-                            href={`/analysis?symbol=${coin.symbol}`}
-                            className="text-blue-400 hover:text-blue-300 text-sm"
-                          >
-                            Analyze
-                          </Link>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                          </td>
+                          <td className="p-4 whitespace-nowrap">
+                            <div className="flex items-center gap-2">
+                              <span className="px-2 py-1 bg-gray-700 rounded text-xs font-medium">
+                                {coin.network}
+                              </span>
+                              {coin.address !== 'Unknown' && (
+                                <button
+                                  onClick={() => handleCopy(coin.id, coin.address)}
+                                  className="text-gray-400 hover:text-blue-400 transition-colors group relative"
+                                  title="Copy address"
+                                >
+                                  {copiedId === coin.id ? (
+                                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4 text-green-500">
+                                      <path fillRule="evenodd" d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z" clipRule="evenodd" />
+                                    </svg>
+                                  ) : (
+                                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
+                                      <path d="M7 3.5A1.5 1.5 0 018.5 2h3.879a1.5 1.5 0 011.06.44l3.122 3.12A1.5 1.5 0 0117 6.622V12.5a1.5 1.5 0 01-1.5 1.5h-1v-3.379a3 3 0 00-.879-2.121L10.5 5.379A3 3 0 008.379 4.5H7v-1z" />
+                                      <path d="M4.5 6A1.5 1.5 0 003 7.5v9A1.5 1.5 0 004.5 18h7a1.5 1.5 0 001.5-1.5v-5.879a1.5 1.5 0 00-.44-1.06L9.44 6.439A1.5 1.5 0 008.378 6H4.5z" />
+                                    </svg>
+                                  )}
+                                  <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 text-xs font-medium text-white bg-gray-900 rounded-md opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
+                                    {copiedId === coin.id ? 'Copied!' : 'Copy address'}
+                                  </span>
+                                </button>
+                              )}
+                            </div>
+                          </td>
+                          <td className={`p-4 whitespace-nowrap ${coin.price_change_24h >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                            {coin.price_change_24h.toFixed(2)}%
+                          </td>
+                          <td className="p-4 whitespace-nowrap">${(coin.market_cap / 1e6).toFixed(2)}M</td>
+                          <td className="p-4 whitespace-nowrap">${(coin.volume_24h / 1e6).toFixed(2)}M</td>
+                          <td className="p-4 whitespace-nowrap">
+                            <Link
+                              href={`/analysis?symbol=${coin.symbol}`}
+                              className="text-blue-400 hover:text-blue-300 text-sm"
+                            >
+                              Analyze
+                            </Link>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                
+                {pagination.hasMore && (
+                  <div className="mt-6 flex justify-center">
+                    <button
+                      onClick={loadMore}
+                      disabled={isLoadingMore}
+                      className={`px-6 py-2 rounded-lg font-medium transition-colors ${
+                        isLoadingMore
+                          ? 'bg-blue-500/50 cursor-not-allowed'
+                          : 'bg-blue-500 hover:bg-blue-600'
+                      }`}
+                    >
+                      {isLoadingMore ? (
+                        <span className="flex items-center gap-2">
+                          <div className="w-4 h-4 border-2 border-white/20 border-t-white rounded-full animate-spin" />
+                          Loading more...
+                        </span>
+                      ) : (
+                        `Load More (${memecoins.length} of ${pagination.total})`
+                      )}
+                    </button>
+                  </div>
+                )}
+              </>
             )}
           </>
         )}

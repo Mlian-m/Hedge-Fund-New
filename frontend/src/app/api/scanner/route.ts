@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 
 interface Blockchain {
   network: string;
@@ -31,8 +31,12 @@ interface LunarCrushCoin {
   logo?: string;
 }
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
+    const searchParams = request.nextUrl.searchParams;
+    const page = parseInt(searchParams.get('page') || '1');
+    const limit = parseInt(searchParams.get('limit') || '100');
+    
     const apiKey = process.env.LUNARCRUSH_API_KEY;
     if (!apiKey) {
       throw new Error('LUNARCRUSH_API_KEY is not configured');
@@ -159,7 +163,23 @@ export async function GET() {
     // Sort by alt_rank in ascending order (lower is better)
     const sortedData = transformedData.sort((a: { alt_rank: number }, b: { alt_rank: number }) => a.alt_rank - b.alt_rank);
 
-    return NextResponse.json({ data: sortedData });
+    // Calculate pagination
+    const startIndex = (page - 1) * limit;
+    const endIndex = startIndex + limit;
+    const paginatedData = sortedData.slice(startIndex, endIndex);
+    const totalPages = Math.ceil(sortedData.length / limit);
+    const hasMore = page < totalPages;
+
+    return NextResponse.json({
+      data: paginatedData,
+      pagination: {
+        page,
+        limit,
+        total: sortedData.length,
+        totalPages,
+        hasMore
+      }
+    });
   } catch (error) {
     console.error('Error fetching memecoins:', error);
     return NextResponse.json(
