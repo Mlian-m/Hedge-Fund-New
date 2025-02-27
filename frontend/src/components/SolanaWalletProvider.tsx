@@ -3,8 +3,7 @@
 import { ConnectionProvider, WalletProvider } from '@solana/wallet-adapter-react';
 import { WalletModalProvider } from '@solana/wallet-adapter-react-ui';
 import { PhantomWalletAdapter } from '@solana/wallet-adapter-wallets';
-import { Connection, clusterApiUrl } from '@solana/web3.js';
-import { useMemo, useState, useEffect } from 'react';
+import { useMemo } from 'react';
 import dynamic from 'next/dynamic';
 
 // Import wallet adapter CSS
@@ -16,72 +15,18 @@ interface SolanaWalletProviderProps {
 
 function BaseProvider({ children }: SolanaWalletProviderProps) {
   // Get RPC endpoints from environment variable
-  const rpcEndpoints = useMemo(() => {
+  const endpoints = useMemo(() => {
     const envEndpoints = process.env.NEXT_PUBLIC_SOLANA_RPC_URL?.split(',') || [];
-    return [
-      ...envEndpoints,
-      'https://api.devnet.solana.com', // Devnet fallback
-      clusterApiUrl('devnet'), // Additional fallback
-    ].filter(Boolean);
+    return envEndpoints.filter(Boolean).map(endpoint => endpoint.trim());
   }, []);
 
-  const [activeEndpoint, setActiveEndpoint] = useState<string | null>(null);
-
-  // Test RPC endpoint connectivity
-  useEffect(() => {
-    async function testEndpoint(endpoint: string) {
-      try {
-        const connection = new Connection(endpoint, {
-          commitment: 'processed',
-          confirmTransactionInitialTimeout: 60000,
-        });
-
-        const headers = {
-          'Content-Type': 'application/json',
-          'User-Agent': 'Mozilla/5.0',
-        };
-
-        // Test connection with proper headers
-        const response = await fetch(endpoint, {
-          method: 'POST',
-          headers,
-          body: JSON.stringify({
-            jsonrpc: '2.0',
-            id: '1',
-            method: 'getHealth',
-          }),
-        });
-
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
-        }
-
-        // Additional connection test
-        await connection.getLatestBlockhash();
-        return true;
-      } catch (error) {
-        console.warn(`RPC endpoint ${endpoint} failed:`, error);
-        return false;
-      }
+  // Use the first endpoint as primary, with others as fallbacks
+  const endpoint = useMemo(() => {
+    if (endpoints.length === 0) {
+      return 'https://api.mainnet-beta.solana.com';
     }
-
-    async function findWorkingEndpoint() {
-      for (const endpoint of rpcEndpoints) {
-        if (await testEndpoint(endpoint)) {
-          console.log(`Using RPC endpoint: ${endpoint}`);
-          setActiveEndpoint(endpoint);
-          return;
-        }
-      }
-      console.error('All RPC endpoints failed');
-      // Default to devnet as last resort
-      setActiveEndpoint('https://api.devnet.solana.com');
-    }
-
-    if (!activeEndpoint) {
-      findWorkingEndpoint();
-    }
-  }, [rpcEndpoints, activeEndpoint]);
+    return endpoints[0];
+  }, [endpoints]);
 
   // Initialize wallet adapter
   const wallets = useMemo(
@@ -91,33 +36,22 @@ function BaseProvider({ children }: SolanaWalletProviderProps) {
     []
   );
 
-  // Connection config
+  // Connection config with proper headers and settings
   const config = useMemo(
     () => ({
-      commitment: 'processed' as const,
+      commitment: 'confirmed' as const,
       confirmTransactionInitialTimeout: 60000,
-      wsEndpoint: activeEndpoint?.replace('https', 'wss'),
-      headers: {
+      wsEndpoint: endpoint.replace('https://', 'wss://'),
+      disableRetryOnRateLimit: false,
+      httpHeaders: {
         'Content-Type': 'application/json',
-        'User-Agent': 'Mozilla/5.0',
-      },
+      }
     }),
-    [activeEndpoint]
+    [endpoint]
   );
 
-  if (!activeEndpoint) {
-    return (
-      <div className="min-h-screen bg-gray-900 text-white flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto mb-4"></div>
-          <p>Connecting to Solana network...</p>
-        </div>
-      </div>
-    );
-  }
-
   return (
-    <ConnectionProvider endpoint={activeEndpoint} config={config}>
+    <ConnectionProvider endpoint={endpoint} config={config}>
       <WalletProvider wallets={wallets} autoConnect>
         <WalletModalProvider>{children}</WalletModalProvider>
       </WalletProvider>

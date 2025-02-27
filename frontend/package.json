@@ -9,6 +9,7 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@solana/spl-token": "^0.4.12",
     "@solana/wallet-adapter-base": "^0.9.23",
     "@solana/wallet-adapter-react": "^0.15.35",
     "@solana/wallet-adapter-react-ui": "^0.9.35",
@@ -32,7 +33,7 @@
     "eslint": "^9",
     "eslint-config-next": "15.1.7",
     "postcss": "^8",
-    "tailwind-scrollbar": "^4.0.0",
+    "tailwind-scrollbar": "^3.0.5",
     "tailwindcss": "^3.4.1",
     "typescript": "^5"
   }

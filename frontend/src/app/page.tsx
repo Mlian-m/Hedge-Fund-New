@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useConnection, useWallet } from '@solana/wallet-adapter-react';
 import { Connection, PublicKey } from '@solana/web3.js';
+import { TOKEN_PROGRAM_ID } from '@solana/spl-token';
 import { Header } from '../components/Header';
 
 const REQUIRED_HEDGY_TOKENS = 100000;
@@ -11,118 +12,160 @@ const REQUIRED_HEDGY_TOKENS = 100000;
 // Token addresses for different networks
 const TOKEN_ADDRESSES = {
   mainnet: '5Tytu6cHm69UN9k1ZEqrvCmfJsdUAJnTJpaAV1fZ2e4h',
-  devnet: 'Gh9ZwEmdLJ8DscKNTkTqPbNwLNNBjuSzaG9Vp2KGtKJr' // Example devnet token
+  devnet: 'Gh9ZwEmdLJ8DscKNTkTqPbNwLNNBjuSzaG9Vp2KGtKJr'
 };
 
-const MAX_RETRIES = 3;
-const RETRY_DELAY = 1000; // 1 second
-
-async function getTokenBalance(connection: Connection, address: PublicKey, tokenAddress: string, retries = 0): Promise<number> {
-  const isDevnet = connection.rpcEndpoint.includes('devnet');
-  
-  // For development/testing on devnet
-  if (isDevnet) {
-    console.log('Using devnet mock balance');
-    return 150000; // Mock balance above required amount
-  }
-
+async function getTokenBalance(connection: Connection, walletAddress: PublicKey, tokenMintAddress: string): Promise<number> {
   try {
-    console.log('Checking token balance for address:', address.toString());
-    console.log('Token address:', tokenAddress);
-    console.log('Network:', isDevnet ? 'devnet' : 'mainnet');
-    
-    const tokenPublicKey = new PublicKey(tokenAddress);
-    
-    // First try getParsedTokenAccountsByOwner
-    try {
-      const accountInfo = await connection.getParsedTokenAccountsByOwner(address, {
-        mint: tokenPublicKey,
-      });
+    console.log('Checking balance for:', {
+      wallet: walletAddress.toString(),
+      tokenMint: tokenMintAddress,
+      network: connection.rpcEndpoint.includes('devnet') ? 'devnet' : 'mainnet',
+      rpcEndpoint: connection.rpcEndpoint
+    });
 
-      if (accountInfo.value.length > 0) {
-        const balance = accountInfo.value[0].account.data.parsed.info.tokenAmount.uiAmount;
-        console.log('Found token balance:', balance);
-        return balance;
-      }
-      console.log('No token accounts found with getParsedTokenAccountsByOwner');
-    } catch (e) {
-      console.warn('Failed to get parsed token accounts:', e);
+    // For development only
+    if (process.env.NEXT_PUBLIC_MOCK_BALANCE === 'true') {
+      console.log('Using mock balance for development');
+      return 150000;
     }
 
-    // Fallback to getTokenAccountsByOwner
-    try {
-      const accounts = await connection.getTokenAccountsByOwner(address, {
-        mint: tokenPublicKey,
-      });
+    const tokenMint = new PublicKey(tokenMintAddress);
+    const maxAttempts = 3;
 
-      if (accounts.value.length > 0) {
-        const balance = await connection.getTokenAccountBalance(accounts.value[0].pubkey);
-        console.log('Found token balance using fallback:', balance.value.uiAmount);
-        return balance.value.uiAmount || 0;
+    // Retry logic for RPC calls with proper typing
+    const retryWithBackoff = async <T,>(fn: () => Promise<T>, attempt: number): Promise<T> => {
+      try {
+        return await fn();
+      } catch (error) {
+        if (attempt >= maxAttempts) throw error;
+        const delay = Math.min(1000 * Math.pow(2, attempt), 10000);
+        console.log(`Attempt ${attempt + 1} failed, retrying in ${delay}ms...`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+        return retryWithBackoff(fn, attempt + 1);
       }
-      console.log('No token accounts found with getTokenAccountsByOwner');
+    };
+
+    // Method 1: Use TOKEN_PROGRAM_ID to find all token accounts
+    try {
+      console.log('Attempting to find token accounts using TOKEN_PROGRAM_ID...');
+      const tokenAccounts = await retryWithBackoff(() => 
+        connection.getTokenAccountsByOwner(
+          walletAddress,
+          { programId: TOKEN_PROGRAM_ID },
+          'confirmed'
+        ), 0);
+
+      console.log(`Found ${tokenAccounts.value.length} token accounts`);
+      
+      for (const { pubkey } of tokenAccounts.value) {
+        try {
+          const accountInfo = await connection.getParsedAccountInfo(pubkey, 'confirmed');
+          if (!accountInfo.value) continue;
+
+          const parsedData = accountInfo.value.data;
+          if ('parsed' in parsedData && parsedData.parsed.info.mint === tokenMint.toString()) {
+            const balance = await connection.getTokenAccountBalance(pubkey, 'confirmed');
+            console.log('Found matching token account with balance:', balance.value.uiAmount);
+            return balance.value.uiAmount || 0;
+          }
+        } catch (e) {
+          console.warn('Error processing account:', pubkey.toString(), e);
+          continue;
+        }
+      }
     } catch (e) {
-      console.warn('Failed to get token accounts by owner:', e);
+      console.warn('Method 1 failed:', e);
     }
 
+    // Method 2: Direct token account query with more detailed error handling
+    try {
+      console.log('Attempting direct token account query...');
+      const tokenAccounts = await retryWithBackoff(() =>
+        connection.getParsedTokenAccountsByOwner(
+          walletAddress,
+          { mint: tokenMint },
+          'confirmed'
+        ), 0);
+
+      if (tokenAccounts.value.length > 0) {
+        const balance = tokenAccounts.value[0].account.data.parsed.info.tokenAmount.uiAmount;
+        console.log('Found balance through direct query:', balance);
+        return balance || 0;
+      }
+    } catch (e) {
+      console.warn('Method 2 failed:', e);
+    }
+
+    console.log('No token balance found using any method');
     return 0;
   } catch (error) {
-    console.error(`Error fetching token balance (attempt ${retries + 1}):`, error);
-    
-    if (retries < MAX_RETRIES) {
-      const delay = RETRY_DELAY * Math.pow(2, retries);
-      console.log(`Retrying in ${delay}ms...`);
-      await new Promise(resolve => setTimeout(resolve, delay));
-      return getTokenBalance(connection, address, tokenAddress, retries + 1);
-    }
-    
-    console.error('Failed to fetch token balance after all retries');
+    console.error('Error checking token balance:', error);
     return 0;
   }
 }
 
 export default function HomePage() {
   const router = useRouter();
-  
-  // Solana wallet state
-  const { publicKey: solAddress, connected: isSolConnected } = useWallet();
+  const { publicKey: walletAddress, connected } = useWallet();
   const { connection } = useConnection();
-  const [solBalance, setSolBalance] = useState<number>(0);
   
+  const [tokenBalance, setTokenBalance] = useState<number>(0);
   const [isAuthorized, setIsAuthorized] = useState(false);
   const [isChecking, setIsChecking] = useState(true);
+  const [checkError, setCheckError] = useState<string | null>(null);
 
-  // Effect for checking Solana token balance
+  // Check token balance when wallet connects
   useEffect(() => {
-    async function checkSolanaBalance() {
-      if (!solAddress || !isSolConnected) {
-        setSolBalance(0);
+    async function checkBalance() {
+      if (!walletAddress || !connected) {
+        setTokenBalance(0);
+        setIsAuthorized(false);
         setIsChecking(false);
+        setCheckError(null);
         return;
       }
 
+      setIsChecking(true);
+      setCheckError(null);
+
       try {
+        // Create a new connection with specific commitment and rate limiting settings
+        const customConnection = new Connection(
+          connection.rpcEndpoint,
+          { 
+            commitment: 'confirmed',
+            confirmTransactionInitialTimeout: 60000,
+            disableRetryOnRateLimit: false
+          }
+        );
+
         const isDevnet = connection.rpcEndpoint.includes('devnet');
         const tokenAddress = isDevnet ? TOKEN_ADDRESSES.devnet : TOKEN_ADDRESSES.mainnet;
-        console.log('Using token address:', tokenAddress, 'on', isDevnet ? 'devnet' : 'mainnet');
         
-        const balance = await getTokenBalance(connection, solAddress, tokenAddress);
-        setSolBalance(balance);
+        console.log('Using connection:', {
+          endpoint: customConnection.rpcEndpoint,
+          commitment: 'confirmed',
+          network: isDevnet ? 'devnet' : 'mainnet'
+        });
+        
+        const balance = await getTokenBalance(customConnection, walletAddress, tokenAddress);
+        console.log('Final balance result:', balance);
+        
+        setTokenBalance(balance);
+        setIsAuthorized(balance >= REQUIRED_HEDGY_TOKENS);
       } catch (error) {
-        console.error('Failed to fetch token balance:', error);
-        setSolBalance(0);
+        console.error('Balance check failed:', error);
+        setCheckError('Failed to verify token balance. Please try again.');
+        setTokenBalance(0);
+        setIsAuthorized(false);
       }
+
       setIsChecking(false);
     }
 
-    checkSolanaBalance();
-  }, [solAddress, isSolConnected, connection]);
-
-  // Check authorization based on token balance
-  useEffect(() => {
-    const hasEnoughTokens = solBalance >= REQUIRED_HEDGY_TOKENS;
-    setIsAuthorized(hasEnoughTokens);
-  }, [solBalance]);
+    checkBalance();
+  }, [walletAddress, connected, connection]);
 
   const handleEnterDashboard = () => {
     if (isAuthorized) {
@@ -150,8 +193,8 @@ export default function HomePage() {
               </p>
               <ul className="text-left text-gray-300 space-y-2 mb-6">
                 <li className="flex items-center">
-                  <span className={`mr-2 ${isSolConnected ? 'text-green-500' : 'text-gray-500'}`}>
-                    {isSolConnected ? '✓' : '○'}
+                  <span className={`mr-2 ${connected ? 'text-green-500' : 'text-gray-500'}`}>
+                    {connected ? '✓' : '○'}
                   </span>
                   Connect your Solana wallet
                 </li>
@@ -167,11 +210,15 @@ export default function HomePage() {
             {isChecking ? (
               <div className="text-center">
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto mb-2"></div>
-                <p className="text-gray-400">Checking requirements...</p>
+                <p className="text-gray-400">Verifying token balance...</p>
               </div>
-            ) : isSolConnected ? (
+            ) : connected ? (
               <div>
-                {isAuthorized ? (
+                {checkError ? (
+                  <div className="text-red-400 p-4 bg-red-400/10 rounded-lg">
+                    <p>{checkError}</p>
+                  </div>
+                ) : isAuthorized ? (
                   <button
                     onClick={handleEnterDashboard}
                     className="bg-blue-500 hover:bg-blue-600 text-white font-semibold py-2 px-6 rounded-lg transition-colors"
@@ -182,11 +229,11 @@ export default function HomePage() {
                   <div className="text-yellow-400 p-4 bg-yellow-400/10 rounded-lg">
                     <p>You need at least {REQUIRED_HEDGY_TOKENS.toLocaleString()} Spark tokens to access the dashboard.</p>
                     <div className="mt-2 text-sm">
-                      Current balance: {solBalance.toLocaleString()} Spark
+                      Current balance: {tokenBalance.toLocaleString()} Spark
                     </div>
                   </div>
                 )}
-                            </div>
+              </div>
             ) : (
               <div className="text-gray-400">
                 Please connect your Solana wallet to check access requirements
@@ -194,7 +241,7 @@ export default function HomePage() {
             )}
           </div>
         </div>
-        </div>
-      </main>
+      </div>
+    </main>
   );
 }
