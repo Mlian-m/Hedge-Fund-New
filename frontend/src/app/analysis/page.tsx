@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { TradingViewWidget } from '../../components/TradingViewWidget';
 import AnalysisPanel from '@/components/AnalysisPanel';
 import { Header } from '../../components/Header';
@@ -145,6 +145,7 @@ interface Cryptocurrency {
 
 export default function AnalysisPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   
   // Solana wallet state
   const { publicKey: solAddress, connected: isSolConnected } = useWallet();
@@ -156,9 +157,9 @@ export default function AnalysisPage() {
   const [isCheckingBalance, setIsCheckingBalance] = useState(true);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [showDecisionModal, setShowDecisionModal] = useState(false);
-  const [crypto, setCrypto] = useState('BTC');
+  const [crypto, setCrypto] = useState(searchParams.get('symbol') || 'BTC');
   const [showDropdown, setShowDropdown] = useState(false);
-  const [searchTerm, setSearchTerm] = useState('');
+  const [searchTerm, setSearchTerm] = useState(searchParams.get('symbol') || '');
   const [filteredCryptos, setFilteredCryptos] = useState<Cryptocurrency[]>([]);
   const [analysis, setAnalysis] = useState<AnalysisResponse['analysis'] | null>(null);
   const [agentReasoning, setAgentReasoning] = useState<AnalysisResponse['agent_reasoning']>([]);

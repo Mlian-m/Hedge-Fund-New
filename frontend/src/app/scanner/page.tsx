@@ -227,7 +227,14 @@ export default function ScannerPage() {
                       </th>
                       <th className="p-4 font-semibold min-w-[200px]">Name</th>
                       <th className="p-4 font-semibold w-[160px]">Network</th>
-                      <th className="p-4 font-semibold w-[120px]">24h Change</th>
+                      <th className="p-4 font-semibold w-[120px]">
+                        <div className="group relative">
+                          <span>24h Change</span>
+                          <div className="absolute top-full left-0 mt-2 px-3 py-2 w-80 text-sm font-normal text-white bg-gray-900 rounded-md opacity-0 group-hover:opacity-100 transition-opacity z-10 shadow-lg">
+                            Percent change in price since 24 hours ago
+                          </div>
+                        </div>
+                      </th>
                       <th className="p-4 font-semibold w-[120px]">Market Cap</th>
                       <th className="p-4 font-semibold w-[120px]">Volume (24h)</th>
                       <th className="p-4 font-semibold w-[80px]">Actions</th>
