@@ -262,7 +262,7 @@ export default function ScannerPage() {
         ) : (
           <>
             <div className="flex justify-between items-center mb-6">
-              <h1 className="text-2xl font-bold">Social Memecoin Scanner</h1>
+              <h1 className="text-2xl font-bold">Social Meme Scanner</h1>
               <div className="flex items-center gap-4">
                 {lastUpdated && (
                   <p className="text-sm text-gray-400">
@@ -272,19 +272,19 @@ export default function ScannerPage() {
                 <button
                   onClick={() => fetchMemecoins(1)}
                   disabled={isLoading}
-                  className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                  className={`p-2 rounded-lg transition-all hover:bg-gray-700 ${
                     isLoading
-                      ? 'bg-blue-500/50 cursor-not-allowed'
-                      : 'bg-blue-500 hover:bg-blue-600'
+                      ? 'text-blue-400/50 cursor-not-allowed'
+                      : 'text-blue-400 hover:text-white'
                   }`}
+                  title="Refresh data"
                 >
                   {isLoading ? (
-                    <span className="flex items-center gap-2">
-                      <div className="w-4 h-4 border-2 border-white/20 border-t-white rounded-full animate-spin" />
-                      Refreshing...
-                    </span>
+                    <div className="w-5 h-5 border-2 border-current border-t-transparent rounded-full animate-spin" />
                   ) : (
-                    'Refresh'
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5">
+                      <path fillRule="evenodd" d="M15.312 11.424a5.5 5.5 0 01-9.201 2.466l-.312-.311h2.433a.75.75 0 000-1.5H3.989a.75.75 0 00-.75.75v4.242a.75.75 0 001.5 0v-2.43l.31.31a7 7 0 0011.712-3.138.75.75 0 00-1.449-.39zm1.23-3.723a.75.75 0 00.219-.53V2.929a.75.75 0 00-1.5 0v2.43l-.31-.31A7 7 0 003.239 8.188a.75.75 0 101.448.389A5.5 5.5 0 0113.89 6.11l.311.31h-2.432a.75.75 0 000 1.5h4.243a.75.75 0 00.53-.219z" clipRule="evenodd" />
+                    </svg>
                   )}
                 </button>
               </div>
