@@ -19,6 +19,8 @@ interface Memecoin {
   alt_rank: number;
   alt_rank_previous: number;
   social_dominance: number;
+  sentiment: number;
+  sentiment_relative: number;
   network: string;
   logo: string;
   address: string;
@@ -202,14 +204,29 @@ export default function ScannerPage() {
                   <thead>
                     <tr className="bg-gray-800 text-left">
                       <th className="p-4 font-semibold w-[140px]">
-                        <div>
-                          <span>AltRank™</span>
-                          <span className="block text-xs text-gray-400">Lower = Better</span>
+                        <div className="group relative">
+                          <div className="flex flex-col">
+                            <span>AltRank™</span>
+                            <span className="text-[10px] text-gray-400">Lower = Better</span>
+                          </div>
+                          <div className="absolute top-full left-0 mt-2 px-3 py-2 w-80 text-sm font-normal text-white bg-gray-900 rounded-md opacity-0 group-hover:opacity-100 transition-opacity z-10 shadow-lg">
+                            A proprietary LunarCrush score based on how an asset is performing relative to all other assets supported
+                          </div>
+                        </div>
+                      </th>
+                      <th className="p-4 font-semibold w-[180px]">
+                        <div className="group relative">
+                          <div className="flex flex-col">
+                            <span>Sentiment</span>
+                            <span className="text-[10px] text-gray-400">Higher = Better</span>
+                          </div>
+                          <div className="absolute top-full left-0 mt-2 px-3 py-2 w-80 text-sm font-normal text-white bg-gray-900 rounded-md opacity-0 group-hover:opacity-100 transition-opacity z-10 shadow-lg">
+                            % of posts (weighted by interactions) that are positive. 100% means all posts are positive, 50% is half positive and half negative, and 0% is all negative posts.
+                          </div>
                         </div>
                       </th>
                       <th className="p-4 font-semibold min-w-[200px]">Name</th>
                       <th className="p-4 font-semibold w-[160px]">Network</th>
-                      <th className="p-4 font-semibold w-[120px]">Price</th>
                       <th className="p-4 font-semibold w-[120px]">24h Change</th>
                       <th className="p-4 font-semibold w-[120px]">Market Cap</th>
                       <th className="p-4 font-semibold w-[120px]">Volume (24h)</th>
@@ -234,6 +251,17 @@ export default function ScannerPage() {
                                 </span>
                               </span>
                             )}
+                          </div>
+                        </td>
+                        <td className="p-4 whitespace-nowrap">
+                          <div>
+                            <span className={`font-medium ${
+                              coin.sentiment > 60 ? 'text-green-500' : 
+                              coin.sentiment > 40 ? 'text-yellow-500' : 
+                              'text-red-500'
+                            }`}>
+                              {coin.sentiment.toFixed(1)}%
+                            </span>
                           </div>
                         </td>
                         <td className="p-4 whitespace-nowrap">
@@ -294,7 +322,6 @@ export default function ScannerPage() {
                             )}
                           </div>
                         </td>
-                        <td className="p-4 whitespace-nowrap">${coin.price.toLocaleString()}</td>
                         <td className={`p-4 whitespace-nowrap ${coin.price_change_24h >= 0 ? 'text-green-500' : 'text-red-500'}`}>
                           {coin.price_change_24h.toFixed(2)}%
                         </td>

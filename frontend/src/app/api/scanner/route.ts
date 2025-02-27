@@ -23,6 +23,8 @@ interface LunarCrushCoin {
   alt_rank: string;
   alt_rank_previous: string;
   social_dominance: string;
+  sentiment: string;
+  sentiment_relative: string;
   blockchains: Blockchain[];
   categories: string;
   raw?: RawCoinData | string;
@@ -145,6 +147,8 @@ export async function GET() {
         alt_rank: parseInt(coin.alt_rank) || 0,
         alt_rank_previous: parseInt(coin.alt_rank_previous) || 0,
         social_dominance: parseFloat(coin.social_dominance) || 0,
+        sentiment: parseFloat(coin.sentiment) || 0,
+        sentiment_relative: parseFloat(coin.sentiment_relative) || 0,
         network: network,
         address: contractAddress
       };
