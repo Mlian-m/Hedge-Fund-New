@@ -2,6 +2,9 @@ import { NextResponse } from 'next/server';
 
 interface Blockchain {
   network: string;
+  type?: string;
+  address?: string | null;
+  decimals?: number;
 }
 
 interface RawCoinData {
@@ -42,7 +45,7 @@ export async function GET() {
     console.log('Fetching memecoins data...');
     const response = await fetch(`${url}?filter=meme&sort=alt_rank`, {
       headers,
-      next: { revalidate: 300 } // Cache for 5 minutes
+      next: { revalidate: 300 }
     });
 
     if (!response.ok) {
@@ -61,12 +64,23 @@ export async function GET() {
       throw new Error('Invalid response format from API');
     }
 
+    // Log detailed information about the first coin as an example
+    if (data.data.length > 0) {
+      const sampleCoin = data.data[0];
+      console.log('\n=== Sample Token Data Structure ===');
+      console.log(JSON.stringify(sampleCoin, null, 2));
+      console.log('\n=== Available Fields ===');
+      console.log(Object.keys(sampleCoin).join('\n'));
+      console.log('\n=== Total Tokens Fetched ===');
+      console.log(`Found ${data.data.length} tokens\n`);
+    }
+
     // Transform the data to match our interface
     const transformedData = data.data.map((coin: LunarCrushCoin) => {
       // Get logo URL with fallbacks
       let logoUrl = null;
 
-      // Try to get logo from the coin's direct logo property
+      // Try to get logo from the coin's properties
       if (coin.logo) {
         logoUrl = coin.logo;
       }
@@ -87,18 +101,26 @@ export async function GET() {
         logoUrl = `https://cdn.lunarcrush.com/assets/coins/${coin.symbol.toLowerCase()}/logo.png`;
       }
 
-      // Debug log for logo URL
-      console.log(`Logo URL for ${coin.symbol}:`, logoUrl);
-
-      // Get network information
+      // Get network information and contract address
       let network = 'Unknown';
+      let contractAddress = 'Unknown';
       
-      // Try to get network from blockchains array
       if (Array.isArray(coin.blockchains) && coin.blockchains.length > 0) {
+        // Get networks
         network = coin.blockchains.map(bc => bc.network).join(', ');
-      } 
-      // If no blockchain data, try to extract from categories
-      else if (coin.categories) {
+        
+        // Find the first non-null contract address
+        const contractInfo = coin.blockchains.find(bc => bc.address && bc.address !== '0');
+        if (contractInfo) {
+          contractAddress = contractInfo.address as string;
+          
+          // Log the found contract address
+          console.log(`Found contract address for ${coin.symbol} on ${contractInfo.network}:`, contractAddress);
+        } else {
+          console.log(`No contract address found for ${coin.symbol} in blockchains:`, coin.blockchains);
+        }
+      } else if (coin.categories) {
+        // Fallback to categories for network info if no blockchains
         const categories = coin.categories.split(',');
         const networkCategories = categories.filter(cat => 
           cat.includes('ecosystem') || 
@@ -106,13 +128,12 @@ export async function GET() {
         );
         if (networkCategories.length > 0) {
           network = networkCategories.map(cat => {
-            // Clean up ecosystem names
             return cat.replace('-ecosystem', '').toLowerCase();
           }).join(', ');
         }
       }
 
-      return {
+      const transformed = {
         id: coin.id || coin.symbol,
         name: coin.name,
         symbol: coin.symbol,
@@ -124,8 +145,11 @@ export async function GET() {
         alt_rank: parseInt(coin.alt_rank) || 0,
         alt_rank_previous: parseInt(coin.alt_rank_previous) || 0,
         social_dominance: parseFloat(coin.social_dominance) || 0,
-        network: network
+        network: network,
+        address: contractAddress
       };
+
+      return transformed;
     });
 
     // Sort by alt_rank in ascending order (lower is better)

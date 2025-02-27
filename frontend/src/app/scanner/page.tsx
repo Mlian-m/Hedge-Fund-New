@@ -17,6 +17,7 @@ interface Memecoin {
   social_dominance: number;
   network: string;
   logo: string;
+  address: string;
 }
 
 export default function ScannerPage() {
@@ -24,6 +25,13 @@ export default function ScannerPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+
+  const handleCopy = (id: string, address: string) => {
+    navigator.clipboard.writeText(address);
+    setCopiedId(id);
+    setTimeout(() => setCopiedId(null), 2000); // Reset after 2 seconds
+  };
 
   const fetchMemecoins = async () => {
     setIsLoading(true);
@@ -55,7 +63,7 @@ export default function ScannerPage() {
       
       <div className="container mx-auto px-4 py-8">
         <div className="flex justify-between items-center mb-6">
-          <h1 className="text-2xl font-bold">Memecoin Scanner</h1>
+          <h1 className="text-2xl font-bold">Social Memecoin Scanner</h1>
           <div className="flex items-center gap-4">
             {lastUpdated && (
               <p className="text-sm text-gray-400">
@@ -99,7 +107,7 @@ export default function ScannerPage() {
                     </div>
                   </th>
                   <th className="p-4 font-semibold min-w-[200px]">Name</th>
-                  <th className="p-4 font-semibold w-[100px]">Network</th>
+                  <th className="p-4 font-semibold w-[160px]">Network</th>
                   <th className="p-4 font-semibold w-[120px]">Price</th>
                   <th className="p-4 font-semibold w-[120px]">24h Change</th>
                   <th className="p-4 font-semibold w-[120px]">Market Cap</th>
@@ -158,9 +166,32 @@ export default function ScannerPage() {
                       </div>
                     </td>
                     <td className="p-4 whitespace-nowrap">
-                      <span className="px-2 py-1 bg-gray-700 rounded text-xs font-medium">
-                        {coin.network}
-                      </span>
+                      <div className="flex items-center gap-2">
+                        <span className="px-2 py-1 bg-gray-700 rounded text-xs font-medium">
+                          {coin.network}
+                        </span>
+                        {coin.address !== 'Unknown' && (
+                          <button
+                            onClick={() => handleCopy(coin.id, coin.address)}
+                            className="text-gray-400 hover:text-blue-400 transition-colors group relative"
+                            title="Copy address"
+                          >
+                            {copiedId === coin.id ? (
+                              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4 text-green-500">
+                                <path fillRule="evenodd" d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z" clipRule="evenodd" />
+                              </svg>
+                            ) : (
+                              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
+                                <path d="M7 3.5A1.5 1.5 0 018.5 2h3.879a1.5 1.5 0 011.06.44l3.122 3.12A1.5 1.5 0 0117 6.622V12.5a1.5 1.5 0 01-1.5 1.5h-1v-3.379a3 3 0 00-.879-2.121L10.5 5.379A3 3 0 008.379 4.5H7v-1z" />
+                                <path d="M4.5 6A1.5 1.5 0 003 7.5v9A1.5 1.5 0 004.5 18h7a1.5 1.5 0 001.5-1.5v-5.879a1.5 1.5 0 00-.44-1.06L9.44 6.439A1.5 1.5 0 008.378 6H4.5z" />
+                              </svg>
+                            )}
+                            <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 text-xs font-medium text-white bg-gray-900 rounded-md opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
+                              {copiedId === coin.id ? 'Copied!' : 'Copy address'}
+                            </span>
+                          </button>
+                        )}
+                      </div>
                     </td>
                     <td className="p-4 whitespace-nowrap">${coin.price.toLocaleString()}</td>
                     <td className={`p-4 whitespace-nowrap ${coin.price_change_24h >= 0 ? 'text-green-500' : 'text-red-500'}`}>

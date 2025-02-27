@@ -233,7 +233,7 @@ export default function HomePage() {
                     </div>
                   </div>
                 )}
-              </div>
+                            </div>
             ) : (
               <div className="text-gray-400">
                 Please connect your Solana wallet to check access requirements
@@ -241,7 +241,7 @@ export default function HomePage() {
             )}
           </div>
         </div>
-      </div>
-    </main>
+        </div>
+      </main>
   );
 }
