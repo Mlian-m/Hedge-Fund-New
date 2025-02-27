@@ -23,28 +23,30 @@ export default function ScannerPage() {
   const [memecoins, setMemecoins] = useState<Memecoin[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
 
-  useEffect(() => {
-    async function fetchMemecoins() {
-      try {
-        const response = await fetch('/api/scanner');
-        if (!response.ok) {
-          throw new Error('Failed to fetch memecoins');
-        }
-        const data = await response.json();
-        setMemecoins(data.data || []);
-      } catch (error) {
-        console.error('Error fetching memecoins:', error);
-        setError('Failed to load memecoins data');
-      } finally {
-        setIsLoading(false);
+  const fetchMemecoins = async () => {
+    setIsLoading(true);
+    try {
+      const response = await fetch('/api/scanner');
+      if (!response.ok) {
+        throw new Error('Failed to fetch memecoins');
       }
+      const data = await response.json();
+      setMemecoins(data.data || []);
+      setLastUpdated(new Date());
+      setError(null);
+    } catch (error) {
+      console.error('Error fetching memecoins:', error);
+      setError('Failed to load memecoins data');
+    } finally {
+      setIsLoading(false);
     }
+  };
 
+  // Initial fetch on component mount
+  useEffect(() => {
     fetchMemecoins();
-    // Refresh data every 5 minutes
-    const interval = setInterval(fetchMemecoins, 300000);
-    return () => clearInterval(interval);
   }, []);
 
   return (
@@ -54,16 +56,34 @@ export default function ScannerPage() {
       <div className="container mx-auto px-4 py-8">
         <div className="flex justify-between items-center mb-6">
           <h1 className="text-2xl font-bold">Memecoin Scanner</h1>
-          <p className="text-sm text-gray-400">
-            Data updates every 5 minutes
-          </p>
+          <div className="flex items-center gap-4">
+            {lastUpdated && (
+              <p className="text-sm text-gray-400">
+                Last updated: {lastUpdated.toLocaleTimeString()}
+              </p>
+            )}
+            <button
+              onClick={fetchMemecoins}
+              disabled={isLoading}
+              className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                isLoading
+                  ? 'bg-blue-500/50 cursor-not-allowed'
+                  : 'bg-blue-500 hover:bg-blue-600'
+              }`}
+            >
+              {isLoading ? (
+                <span className="flex items-center gap-2">
+                  <div className="w-4 h-4 border-2 border-white/20 border-t-white rounded-full animate-spin" />
+                  Refreshing...
+                </span>
+              ) : (
+                'Refresh'
+              )}
+            </button>
+          </div>
         </div>
 
-        {isLoading ? (
-          <div className="flex items-center justify-center h-64">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
-          </div>
-        ) : error ? (
+        {error ? (
           <div className="bg-red-900/20 border border-red-500/50 rounded-lg p-4 text-red-500">
             {error}
           </div>
